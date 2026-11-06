@@ -34,8 +34,10 @@ BRANCH=${BRANCH:-polars-transformer}
 HF_DATASET=${HF_DATASET:-seanv507/kaggle-otto-multi-objective}
 HF_OUT=${HF_OUT:-benny_t4r}  # folder in the HF dataset for the outputs
 WORK=${WORK:-/workspace}
+CODE=${WORK}/code
+DATA=${WORK}/data
 UPLOAD=${UPLOAD:-1}  # 0: keep the outputs on the pod only
-STOP_POD=${STOP_POD:-1}  # 0: leave the pod running at the end (e.g. to inspect it)
+STOP_POD=${STOP_POD:-0}  # 0: leave the pod running at the end (e.g. to inspect it)
 TRAIN_ARGS=${TRAIN_ARGS:-}
 
 export HF_XET_HIGH_PERFORMANCE=1
@@ -67,7 +69,7 @@ trap on_exit EXIT
 
 # 1. code
 command -v uv >/dev/null || { curl -LsSf https://astral.sh/uv/install.sh | sh; export PATH=$HOME/.local/bin:$PATH; }
-cd "$WORK"
+cd "$CODE"
 [ -d Kaggle-Otto-Comp-Benedikt ] || git clone --branch "$BRANCH" "$REPO"
 cd Kaggle-Otto-Comp-Benedikt
 git fetch origin && git checkout "$BRANCH" && git pull --ff-only
@@ -76,12 +78,12 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv | tee "$LOG
 git rev-parse HEAD | tee "$LOGS/commit.txt"
 
 # 2. inputs, gathered in one directory under the names preprocess.py expects
+SRC=$WORK/data/src
 hf download "$HF_DATASET" --repo-type dataset \
-    --include "train.parquet" "test.parquet" "test_full.parquet" "local_valid/*" --local-dir "$WORK/hf"
-SRC=$WORK/src
+    "train.parquet" "test.parquet" "test_full.parquet" "local_valid/*" --local-dir "$DATA/hf"
 mkdir -p "$SRC"
-for f in train test test_full; do ln -sf "$WORK/hf/$f.parquet" "$SRC/$f.parquet"; done
-for f in valid_train valid_test valid_test_labels; do ln -sf "$WORK/hf/local_valid/$f.parquet" "$SRC/$f.parquet"; done
+for f in train test test_full; do ln -sf "$DATA/hf/$f.parquet" "$SRC/$f.parquet"; done
+for f in valid_train valid_test valid_test_labels; do ln -sf "$DATA/hf/local_valid/$f.parquet" "$SRC/$f.parquet"; done
 
 # 3. links, labels and session splits (existing splits are kept)
 uv run python 00_Preprocess/preprocess.py --src "$SRC" --check 2>&1 | tee -a "$LOGS/preprocess.log"
