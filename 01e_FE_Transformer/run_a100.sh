@@ -38,7 +38,7 @@ CODE=${WORK}/code
 DATA=${WORK}/data
 UPLOAD=${UPLOAD:-1}  # 0: keep the outputs on the pod only
 STOP_POD=${STOP_POD:-0}  # 0: leave the pod running at the end (e.g. to inspect it)
-TRAIN_ARGS=${TRAIN_ARGS:-}
+TRAIN_ARGS=${TRAIN_ARGS:---tf32}  # TF32 matmuls on the A100; set TRAIN_ARGS="" for full fp32
 
 export HF_XET_HIGH_PERFORMANCE=1
 LOGS=$WORK/logs

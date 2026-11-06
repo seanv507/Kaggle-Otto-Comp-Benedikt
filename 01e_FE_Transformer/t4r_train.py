@@ -154,6 +154,10 @@ def main(args):
     )
     print(params)
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
+    if args.tf32:
+        # TF32 matmuls and convolutions on Ampere and newer: faster, ~10-bit mantissa products
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
     torch.manual_seed(args.seed)
     rng = np.random.default_rng(args.seed)
 
@@ -206,6 +210,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval-sample", type=float, default=0.1, help="fraction of sessions for per-epoch recall")
     parser.add_argument("--sample", type=float, default=1.0, help="fraction of training sequences (for small GPUs)")
     parser.add_argument("--device", default=None)
+    parser.add_argument("--tf32", action="store_true", help="allow TF32 matmuls (Ampere+ GPUs, e.g. A100)")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--log-every", type=int, default=1000)
     main(parser.parse_args())
