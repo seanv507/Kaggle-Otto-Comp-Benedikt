@@ -15,7 +15,9 @@ The sibling repo `../Kaggle-OTTO-Comp` is Chris Deotte's part, and it is being c
 
 `../Kaggle-OTTO-Comp/docs/solutions.md` summarises both write-ups.
 
-The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**, one pipeline step at a time, next to the notebooks they replace. Done so far: `00_Preprocess/preprocess.py`.
+The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**, one pipeline step at a time, next to the notebooks they replace. Done so far:
+- `00_Preprocess/preprocess.py`
+- `01e_FE_Transformer/` (`t4r_data.py`, `t4r_model.py`, `t4r_train.py`): Benny's Transformers4Rec model, reimplemented in plain PyTorch with HF `XLNetModel`. See its README for the differences from Benny's code and the recall to match.
 
 ## Data
 
@@ -32,4 +34,5 @@ This repo uses the same data as `../Kaggle-OTTO-Comp`. `00_Preprocess/preprocess
 
 - Managed with `uv`. Run from the repo root: `uv run python <dir>/<script>.py` and `uv run pytest`.
 - Editable install with hatch `dev-mode-dirs = ["."]`, so scripts in numbered directories can import `paths` and `event_types`. Tests import modules from their own directory.
-- Only the dependencies needed so far are installed. Add torch, xgboost, gensim and so on when converting the step that needs them.
+- torch comes from an extra: `uv sync --extra cu132` on a GPU machine (CUDA 13.2 wheels), `--extra cpu` otherwise. A plain `uv sync` removes torch.
+- Only the dependencies needed so far are installed. Add xgboost, gensim and so on when converting the step that needs them.

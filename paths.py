@@ -32,3 +32,6 @@ XGB_TRAIN_Y = CV_TEST_LABELS
 # session splits (Benny: sessions_eval.pickle, split/sub_sessoins_10.pickle)
 SESSIONS_EVAL = DATA_TMP / "sessions_eval.parquet"
 SUB_SESSIONS = DATA_TMP / "split" / "sub_sessions.parquet"
+
+# transformer (01e_FE_Transformer): sequences, item ids, checkpoints, candidates
+T4R = DATA_TMP / "t4r"

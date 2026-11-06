@@ -10,7 +10,32 @@ dependencies = [
     "numpy>=2.2.6",
     # cudf-polars-cu13 26.10 needs polars>=1.35,<1.45; see CLAUDE.md
     "polars[all]>=1.44,<1.45",
+    "transformers>=4.46",  # XLNetModel for the 01e transformer
 ]
+
+# torch: `uv sync --extra cu132` on a GPU machine, `--extra cpu` otherwise
+[project.optional-dependencies]
+cpu = ["torch>=2.15"]
+cu132 = ["torch>=2.15"]
+
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "cu132" }]]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu132", extra = "cu132" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true
 
 [dependency-groups]
 dev = [

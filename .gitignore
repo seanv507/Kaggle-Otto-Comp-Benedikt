@@ -9,3 +9,6 @@ data/**/*.parquet
 preprocess/**/*.parquet
 data_tmp/**/*.parquet
 data_folds/**/*.parquet
+# intermediate outputs (sequences, checkpoints, candidates)
+data_tmp/*
+!data_tmp/.gitkeep
