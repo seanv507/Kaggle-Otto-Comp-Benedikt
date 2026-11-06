@@ -1,8 +1,12 @@
 # Plan: converting the rest of Benny's pipeline to Polars
 
-Status on 2026-11-06:
-- **Done:** `00_Preprocess`, merged to master.
-- **On branch `polars-transformer`:** `01e_FE_Transformer`. It still needs a full run on an A100 to match Benny's recall@20.
+Status on 2026-11-07:
+- **Done, on master:** `00_Preprocess`, and `01e_FE_Transformer`. The full A100 run of `01e` beat Benny's recall@20 (week 4: 0.503/0.392/0.524 against his 0.455/0.331/0.491).
+- **Step 1 (`folds.py`):** done on branch `polars-folds`.
+
+How the work is done:
+- Each step is developed and tested locally on its own branch, on a sample of the sessions.
+- The A100 runs are done only at the end, once every step is ready. Everything that can be done before that is done first (see "A100 runs at the end").
 
 ## What's left, and how it fits together
 
@@ -44,13 +48,19 @@ Shared code goes in one place and isn't copied per notebook:
 
 Each step is a branch. It ends with tests passing and a short README in its directory that records what differs from Benny's code.
 
-### 1. Shared fold helpers (foundation)
+### 1. Shared fold helpers (foundation) — done
 A `folds.py` module at the repo root, so no notebook has to rebuild the inputs by hand:
 - `fe_events(k)`: the events for fold *k*'s feature engineering. That's `TRAIN` without fold *k*'s held-out sessions, plus those sessions truncated from `XGB_TRAIN_X`, plus `TEST`. This replaces the `files_split` / `isin(sess_eval)` code at the top of nearly every `01*` notebook.
 - `heldout_sessions(k)`, and the `train` / `sub` session sets that candidates are generated for.
 - `write_candidates(df, k, dataset, source)` and `read_candidates(...)`: they write and read the candidate-file layout and check its schema.
 
 **Test:** synthetic events with fold *k* checked by hand. There's also a data check: across all *k*, every week-4 session appears truncated exactly once and untruncated four times.
+
+As built:
+- Sources that don't depend on the fold (`t4r`, previous visits) are written once to `data_folds/shared/candidates/...` rather than copied to each fold. `candidate_paths(k, dataset)` lists the fold's and the shared files, and `read_candidates` filters a shared `train` file to the fold.
+- `sample_sessions(frame, fraction, seed)` keeps the same sessions in every file, for local development. Every step's CLI should take `--sample`.
+- `uv run python folds.py --check` checks the folds on the real data (4 s).
+- `01e` now writes its candidates through `write_candidates` as the shared source `t4r`.
 
 ### 2. `01f` simple features (no fold dependence)
 - `04_PreviousVisits*.ipynb` (`pv`, `pv_2`): history items as candidates, with recency and type weights.
@@ -129,7 +139,20 @@ Chris's public LB 0.575 solution fills sessions with fewer than 20 recommendatio
 | 8 | 7 GRU | most work for one feature |
 | 9 | 11 baseline | only needed for the final submission |
 
-## Open decisions
-- **Sharing code with the sibling repo:** use a uv path dependency on `../Kaggle-OTTO-Comp`, or move `covisits.py` into a small shared package.
-- **How faithful to be:** match Benny bit for bit where it's cheap, and document deliberate differences, as in `01e`. One example is the length-1 sessions that Benny gave no T4R candidates.
-- **Compute:** five folds of covisits, Word2Vec and GRU need the A100. Every step should take sample or chunk parameters so it can be developed on the local GPU.
+## Decisions (2026-11-07)
+- **Sharing code with the sibling repo:** a uv path dependency on `../Kaggle-OTTO-Comp`. Its package is `otto`, and `covisits.py` lives in `train/covisit_matrices/`, which isn't importable as a package yet. Step 5 has to make it importable in the sibling repo (for example by adding it to the sibling's hatch `only-include`). The A100 pod then also needs the sibling repo cloned next to this one.
+- **How faithful to be:** match Benny bit for bit where it's cheap, and document deliberate differences in each step's README, as in `01e`. One example is the length-1 sessions that Benny gave no T4R candidates.
+- **Compute:** five folds of covisits, Word2Vec and GRU need the A100. Every step takes `--sample` (and chunk parameters where memory needs them) so that it can be developed on the local GPU.
+
+## A100 runs at the end
+Done locally first, for every step:
+- the unit tests and reference-port tests;
+- a run on a sample (`--sample 0.02` or so) of fold 0, with candidate recall reported;
+- a check of the step's peak memory on the sample, to scale up to the full data.
+
+Left for the A100, in one script like `01e/run_a100.sh`:
+- every per-fold step on the full data for all five folds;
+- the rankers on the full candidate sets;
+- the final scores (CV on week 4, "LB" against `TEST_LABELS`).
+
+`01e` was the exception: its full run is already done, and its candidates are on HF in `benny_t4r/`. Local work on the rankers (step 8) can download them instead of using the small local model's candidates.

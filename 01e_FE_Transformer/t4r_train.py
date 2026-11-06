@@ -5,11 +5,12 @@ from t4r_data.py. Benny's schedule: 3 epochs on weeks 1-3 + week 4 truncated +
 Kaggle test, then 1 epoch on week 4 truncated + Kaggle test only. After each epoch
 it prints recall@20 on week 4 (against XGB_TRAIN_Y, as Benny did) and on the Kaggle
 test (against TEST_LABELS, which Benny didn't have), and saves a checkpoint. After
-the last epoch it writes the top-k candidates for both:
-    T4R/cand_train.parquet  week-4 sessions (Benny: candidates/train/t4r/cand.parquet)
-    T4R/cand_sub.parquet    Kaggle test sessions (Benny: candidates/sub/t4r/cand.parquet)
+the last epoch it writes the top-k candidates for both, as the shared source `t4r`
+(see folds.py):
+    data_folds/shared/candidates/train/t4r/cand.parquet  all week-4 sessions
+    data_folds/shared/candidates/sub/t4r/cand.parquet    the Kaggle test sessions
 with columns session, cand, t4r_rank (0 = best), t4r_score (softmax over the top k).
-The model doesn't depend on the fold, so Benny copied the same files to every fold.
+The model doesn't depend on the fold; Benny copied the same files to every fold.
 
 The full model needs a large GPU (the 1.84M x 256 item table and its Adam state alone
 take ~8 GB). On a small GPU, try it with e.g. --d-model 32 --n-head 4 --sample 0.02.
@@ -30,11 +31,13 @@ from beartype import beartype
 from t4r_data import AID_MAP, FIRST_ITEM, PAD, T4R, sequence_path, to_padded
 from t4r_model import Params, SessionTransformer
 
+import folds
 import paths
 from event_types import TYPE_NAMES
 
-CAND_TRAIN = T4R / "cand_train.parquet"
-CAND_SUB = T4R / "cand_sub.parquet"
+SOURCE = "t4r"
+CAND_TRAIN = folds.candidate_path(None, "train", SOURCE)
+CAND_SUB = folds.candidate_path(None, "sub", SOURCE)
 CHECKPOINTS = T4R / "checkpoints"
 
 
@@ -189,9 +192,9 @@ def main(args):
         recalls = evaluate(model, data, item_to_aid, 20, args.eval_batch_size, device, args.eval_sample, args.seed)
         print(f"epoch {e}: loss {loss:.4f}  recall@20 {recalls}")
 
-    for (sessions, items), path in [(data["xgb_train_x"], CAND_TRAIN), (data["test"], CAND_SUB)]:
+    for (sessions, items), dataset in [(data["xgb_train_x"], "train"), (data["test"], "sub")]:
         cands = predict(model, sessions, items, item_to_aid, args.topk, args.eval_batch_size, device)
-        cands.write_parquet(path)
+        path = folds.write_candidates(cands, None, dataset, SOURCE)
         print(f"wrote {path.relative_to(paths.ROOT)}: {cands.height:,} rows")
     print("recall@20, all sessions:")
     print("  week 4:", recall_at_20(pl.read_parquet(CAND_TRAIN), pl.scan_parquet(paths.XGB_TRAIN_Y)))

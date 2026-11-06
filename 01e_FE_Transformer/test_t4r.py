@@ -10,6 +10,8 @@ from t4r_data import PAD, UNKNOWN, aid_map, sequences, to_padded
 from t4r_model import Params, SessionTransformer, false_negative_mask, mlm_targets
 from t4r_train import predict, recall_at_20
 
+from engines import ENGINES
+from engines import engine as to_engine
 from event_types import CARTS, CLICKS, ORDERS
 
 EVENT_SCHEMA = {  # same dtypes as data/train.parquet
@@ -29,22 +31,7 @@ def _events(rows):
     )
 
 
-def _gpu_available():
-    try:
-        pl.LazyFrame({"a": [1]}).collect(engine=pl.GPUEngine(raise_on_fail=True))
-        return True
-    except Exception:
-        return False
-
-
-GPU = pytest.param("gpu", marks=pytest.mark.skipif(not _gpu_available(), reason="GPU engine unavailable"))
-
-
-def _engine(name):
-    return pl.GPUEngine(raise_on_fail=True) if name == "gpu" else name
-
-
-@pytest.mark.parametrize("engine", ["streaming", "in-memory", GPU])
+@pytest.mark.parametrize("engine", ENGINES)
 def test_aid_map(engine):
     a = _events([(1, 7, 0, CLICKS), (1, 5, 1, CLICKS), (2, 5, 0, CLICKS)])
     b = _events([(3, 9, 0, CLICKS), (3, 7, 1, CARTS)])
@@ -52,7 +39,7 @@ def test_aid_map(engine):
         {"aid": [5, 7, 9], "item": [2, 3, 4], "count": [2, 2, 1]},  # count tie: smaller aid first
         schema={"aid": pl.Int32, "item": pl.Int32, "count": pl.UInt32},
     )
-    assert_frame_equal(aid_map([a, b], engine=_engine(engine)), expected)
+    assert_frame_equal(aid_map([a, b], engine=to_engine(engine)), expected)
 
 
 @pytest.mark.parametrize("engine", ["streaming", "in-memory"])  # sort_by in group_by isn't on GPU

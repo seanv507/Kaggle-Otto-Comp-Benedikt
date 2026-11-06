@@ -17,7 +17,10 @@ The sibling repo `../Kaggle-OTTO-Comp` is Chris Deotte's part, and it is being c
 
 The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**, one pipeline step at a time, next to the notebooks they replace. Done so far:
 - `00_Preprocess/preprocess.py`
-- `01e_FE_Transformer/` (`t4r_data.py`, `t4r_model.py`, `t4r_train.py`): Benny's Transformers4Rec model, reimplemented in plain PyTorch with HF `XLNetModel`. See its README for the differences from Benny's code and the recall to match.
+- `01e_FE_Transformer/` (`t4r_data.py`, `t4r_model.py`, `t4r_train.py`): Benny's Transformers4Rec model, reimplemented in plain PyTorch with HF `XLNetModel`. See its README for the differences from Benny's code and the A100 recall, which beats Benny's.
+- `folds.py` (root): the fold inputs (`fe_events(k)`, `candidate_events(k, dataset)`, `labels`), `sample_sessions` for local development, and the candidate-file layout (`write_candidates`, `candidate_paths`, `read_candidates`). Every per-fold step uses it instead of rebuilding the inputs.
+
+`docs/conversion_plan.md` has the remaining steps. Each step goes on its own branch and is developed locally on a sample. The A100 runs come at the end.
 
 ## Data
 
@@ -29,6 +32,11 @@ This repo uses the same data as `../Kaggle-OTTO-Comp`. `00_Preprocess/preprocess
 - `TEST_LABELS` are the Kaggle test labels, built from the untruncated `TEST_FULL`. Benny never had them. Use them to score the LB pipeline locally.
 - Number events within a session (`int_range().over("session")`) **before** any join. On the streaming engine a join doesn't keep row order, and numbering after it gave wrong labels with no error.
 - Session splits are pickles of Python lists in the notebooks. Here they are parquet `(session, part[, fold])`, so they can be used in a join instead of `isin`.
+
+## Tests
+
+- Parametrize Polars code over `engines.ENGINES` (streaming, in-memory, and GPU when available) and collect with `engines.engine(name)`.
+- On the GPU engine, `Expr.hash` gives different values from the CPU engines. Use integer arithmetic (as `folds.sample_sessions` does) where the result must not depend on the engine.
 
 ## Environment
 

@@ -4,8 +4,15 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
+from engines import ENGINES
+from engines import engine as to_engine
 from event_types import CARTS, CLICKS, ORDERS
-from preprocess import check_truncation_is_prefix, labels_after_cut, labels_long, partition_sessions
+from preprocess import (
+    check_truncation_is_prefix,
+    labels_after_cut,
+    labels_long,
+    partition_sessions,
+)
 
 EVENT_SCHEMA = {  # same dtypes as data/train.parquet
     "session": pl.Int32,
@@ -18,26 +25,6 @@ LABEL_SCHEMA = {  # same dtypes as valid_test_labels.parquet
     "type": pl.UInt8,
     "ground_truth": pl.List(pl.Int32),
 }
-
-
-def _gpu_available():
-    try:
-        pl.LazyFrame({"a": [1]}).collect(engine=pl.GPUEngine(raise_on_fail=True))
-        return True
-    except Exception:
-        return False
-
-
-GPU = pytest.param(
-    "gpu",
-    marks=pytest.mark.skipif(not _gpu_available(), reason="GPU engine unavailable"),
-)
-ENGINES = ["streaming", "in-memory", GPU]
-
-
-def _engine(name):
-    # for gpu, fail rather than silently fall back to CPU
-    return pl.GPUEngine(raise_on_fail=True) if name == "gpu" else name
 
 
 @pytest.mark.parametrize("engine", ENGINES)
@@ -65,7 +52,7 @@ def test_labels_long(engine):
         schema={"session": pl.Int32, "aid": pl.Int32, "type": pl.UInt8},
         orient="row",
     )
-    assert_frame_equal(labels_long(labels, engine=_engine(engine)), expected)
+    assert_frame_equal(labels_long(labels, engine=to_engine(engine)), expected)
 
 
 SESSIONS = pl.Series("session", list(range(100, 203)) * 2, dtype=pl.Int32)  # 103 unique, duplicated

@@ -54,7 +54,7 @@ build-backend = "hatchling.build"
 dev-mode-dirs = ["."]
 
 [tool.hatch.build.targets.wheel]
-only-include = ["event_types.py", "paths.py"]
+only-include = ["engines.py", "event_types.py", "folds.py", "paths.py"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

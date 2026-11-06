@@ -24,7 +24,8 @@ Benny's `custom_t4r.py` was deleted in commit `1a76a2e`. Read it with `git show 
 - `aid_map.parquet`: (`aid`, `item`, `count`). Items are numbered 2, 3, … by descending event count over `CV_TRAIN`, `XGB_TRAIN_X` and `TEST`. 0 is padding and 1 is an unknown aid.
 - `seq_{cv_train,xgb_train_x,test}.parquet`: (`session`, `item`, `type`, `ts`). These are the last 20 events of each session, oldest first, and `ts` is the time of the first kept event.
 - `checkpoints/epoch_{e}.pt`: the model's `state_dict` after each epoch.
-- `cand_train.parquet` (week-4 sessions) and `cand_sub.parquet` (Kaggle test sessions): (`session`, `cand`, `t4r_rank`, `t4r_score`). These are the top 50 per session, and `t4r_score` is a softmax over those 50. The model doesn't depend on the fold, so Benny copied the same files to `data_folds/fold_*/candidates/{train,sub}/t4r/cand.parquet`.
+
+The candidates are the shared source `t4r` (see `folds.py`): `data_folds/shared/candidates/train/t4r/cand.parquet` (all week-4 sessions) and `.../sub/t4r/cand.parquet` (Kaggle test sessions). Their columns are (`session`, `cand`, `t4r_rank`, `t4r_score`). These are the top 50 per session, and `t4r_score` is a softmax over those 50. The model doesn't depend on the fold. Benny copied the same files to every `data_folds/fold_*/candidates/{train,sub}/t4r/cand.parquet`; `folds.read_candidates` filters the shared `train` file to the fold instead. `run_a100.sh` uploads them to HF as `benny_t4r/cand_train.parquet` and `benny_t4r/cand_sub.parquet`.
 
 ## Model
 
@@ -42,6 +43,18 @@ Benny's logged recall@20 on week 4 is the target:
 |---|---|---|---|
 | 0 | 0.447 | 0.321 | 0.471 |
 | 1 | 0.455 | 0.331 | 0.491 |
+
+The full A100 run (2026-11-06, commit `22c9bbd`, fp32 without TF32) beat it:
+
+| epoch | week 4 clicks | carts | orders | Kaggle test clicks | carts | orders |
+|---|---|---|---|---|---|---|
+| 0 | 0.484 | 0.376 | 0.498 | 0.479 | 0.385 | 0.520 |
+| 1 | 0.498 | 0.390 | 0.517 | 0.494 | 0.398 | 0.539 |
+| 2 | 0.503 | 0.394 | 0.528 | 0.500 | 0.402 | 0.550 |
+| 3 | 0.502 | 0.391 | 0.523 | 0.499 | 0.403 | 0.548 |
+| 3, all sessions | 0.503 | 0.392 | 0.524 | 0.500 | 0.400 | 0.543 |
+
+The per-epoch rows are measured on a 10% sample of the sessions. The last epoch (week 4 and test only) slightly lowers recall. Training ran at 9.3 it/s, so the 38.5k steps took about 70 minutes.
 
 ## Differences from Benny's code
 

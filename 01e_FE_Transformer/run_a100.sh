@@ -95,20 +95,25 @@ else
     uv run python 01e_FE_Transformer/t4r_data.py 2>&1 | tee -a "$LOGS/t4r_data.log"
 fi
 
-# 5. training and candidates
-if [ -f data_tmp/t4r/cand_sub.parquet ]; then
-    echo "candidates exist: skipping t4r_train.py (delete data_tmp/t4r/cand_*.parquet to retrain)"
+# 5. training and candidates (the shared candidate source t4r, see folds.py)
+CANDS=data_folds/shared/candidates
+if [ -f $CANDS/sub/t4r/cand.parquet ]; then
+    echo "candidates exist: skipping t4r_train.py (delete $CANDS/*/t4r to retrain)"
 else
     # shellcheck disable=SC2086  # TRAIN_ARGS is a list of arguments
     uv run python 01e_FE_Transformer/t4r_train.py $TRAIN_ARGS 2>&1 | tee -a "$LOGS/t4r_train.log"
 fi
 
-# 6. outputs
+# 6. outputs, uploaded as cand_train.parquet and cand_sub.parquet
+up() {
+    hf upload "$HF_DATASET" "$1" "$HF_OUT/$2" --repo-type dataset \
+        --commit-message "Benny t4r: $2 ($(cat "$LOGS/commit.txt"))"
+}
 if [ "$UPLOAD" = 1 ]; then
     last=$(ls data_tmp/t4r/checkpoints/epoch_*.pt | sort -V | tail -1)
-    for f in data_tmp/t4r/cand_train.parquet data_tmp/t4r/cand_sub.parquet data_tmp/t4r/aid_map.parquet "$last"; do
-        hf upload "$HF_DATASET" "$f" "$HF_OUT/$(basename "$f")" --repo-type dataset \
-            --commit-message "Benny t4r: $(basename "$f") ($(cat "$LOGS/commit.txt"))"
-    done
+    up $CANDS/train/t4r/cand.parquet cand_train.parquet
+    up $CANDS/sub/t4r/cand.parquet cand_sub.parquet
+    up data_tmp/t4r/aid_map.parquet aid_map.parquet
+    up "$last" "$(basename "$last")"
 fi
 echo "done: recall per epoch is in $LOGS/t4r_train.log"
