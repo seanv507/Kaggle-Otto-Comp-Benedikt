@@ -1,0 +1,38 @@
+[project]
+name = "otto-benny"
+version = "0.1.0"
+description = "Benny's part of the 3rd place OTTO solution, converted to Polars"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "beartype>=0.22.9",
+    "cudf-polars-cu13>=26.10",
+    "numpy>=2.2.6",
+    # cudf-polars-cu13 26.10 needs polars>=1.35,<1.45; see CLAUDE.md
+    "polars[all]>=1.44,<1.45",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "pytest>=8.3.5",
+    "ruff>=0.11.10",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Editable install that puts the repo root on sys.path, so scripts in
+# numbered directories can import root modules (event_types, paths).
+[tool.hatch.build]
+dev-mode-dirs = ["."]
+
+[tool.hatch.build.targets.wheel]
+only-include = ["event_types.py", "paths.py"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ruff.lint]
+extend-select = ["B"]

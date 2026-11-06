@@ -1,0 +1,35 @@
+# CLAUDE.md
+
+## What this repo is
+
+The user's fork of **Benny Schifferer's part** of the 3rd place [OTTO](https://www.kaggle.com/competitions/otto-recommender-system) solution (`seanv507/Kaggle-Otto-Comp-Benedikt`). It is an XGBoost reranker with Transformers4Rec, GRU and Word2Vec features and a 5-fold week-4 split. See README.md for the pipeline.
+
+The sibling repo `../Kaggle-OTTO-Comp` is Chris Deotte's part, and it is being converted to Polars too. **Read `../Kaggle-OTTO-Comp/CLAUDE.md`.** Its rules apply here as well:
+- the Polars pin (1.44.x, for `cudf-polars-cu13`);
+- the GPU-engine limits;
+- the lazy API with an `engine` parameter;
+- `type` codes from `event_types.py` rather than strings;
+- `ts` as Datetime(ms), not epoch seconds;
+- the testing conventions;
+- the hardware notes (local RTX 2050 vs cloud A100).
+
+`../Kaggle-OTTO-Comp/docs/solutions.md` summarises both write-ups.
+
+The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**, one pipeline step at a time, next to the notebooks they replace. Done so far: `00_Preprocess/preprocess.py`.
+
+## Data
+
+This repo uses the same data as `../Kaggle-OTTO-Comp`. `00_Preprocess/preprocess.py` symlinks it in and builds the labels and session splits. `00_Preprocess/README.md` maps each of Benny's files to its source.
+
+- Use the constants in `paths.py` (`TRAIN`, `TEST`, `TEST_FULL`, `TEST_LABELS`, `CV_TRAIN`, `XGB_TRAIN_X`, `XGB_TRAIN_Y`, `SESSIONS_EVAL`, `SUB_SESSIONS`, ...). Don't use the per-directory `./data` symlinks that the notebooks rely on.
+- Benny's notebooks read `data/train/interim/*.parquet` (all 4 weeks), which is now `paths.TRAIN`. They read `preprocess/train/interim/*.parquet` (weeks 1–3), which is now `paths.CV_TRAIN`.
+- Week-4 folds: fold *k* holds out the sessions with `fold == k` in `SESSIONS_EVAL`. For those sessions the truncated events come from `XGB_TRAIN_X`. All other sessions come untruncated from `TRAIN`.
+- `TEST_LABELS` are the Kaggle test labels, built from the untruncated `TEST_FULL`. Benny never had them. Use them to score the LB pipeline locally.
+- Number events within a session (`int_range().over("session")`) **before** any join. On the streaming engine a join doesn't keep row order, and numbering after it gave wrong labels with no error.
+- Session splits are pickles of Python lists in the notebooks. Here they are parquet `(session, part[, fold])`, so they can be used in a join instead of `isin`.
+
+## Environment
+
+- Managed with `uv`. Run from the repo root: `uv run python <dir>/<script>.py` and `uv run pytest`.
+- Editable install with hatch `dev-mode-dirs = ["."]`, so scripts in numbered directories can import `paths` and `event_types`. Tests import modules from their own directory.
+- Only the dependencies needed so far are installed. Add torch, xgboost, gensim and so on when converting the step that needs them.

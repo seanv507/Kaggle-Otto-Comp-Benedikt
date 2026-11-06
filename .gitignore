@@ -1,0 +1,11 @@
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# data directories keep only .gitkeep; data files and input symlinks are ignored
+data/**/*.parquet
+preprocess/**/*.parquet
+data_tmp/**/*.parquet
+data_folds/**/*.parquet
