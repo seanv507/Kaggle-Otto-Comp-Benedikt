@@ -25,7 +25,12 @@ import time
 import numpy as np
 import polars as pl
 import torch
-from gru_data import OFFSET, SEQ, inference_inputs, training_examples
+from gru_data import (
+    OFFSET,
+    SEQ,
+    inference_inputs,
+    training_examples_chunked,
+)
 from gru_model import CONFIGS, FIRST_ITEM, GRU
 
 import folds
@@ -145,7 +150,7 @@ def main(args):
     for k in args.folds:
         start = time.time()
         events = folds.fe_events(k, args.sample)
-        examples = training_examples(events).collect()
+        examples = training_examples_chunked(events, args.session_chunk or None)
         n_items = (
             int(
                 examples.select(pl.col("item").list.max().max(), pl.col("target").max())
@@ -243,6 +248,12 @@ if __name__ == "__main__":
         type=int,
         default=256,
         help="sessions per prediction batch (scores against every item)",
+    )
+    parser.add_argument(
+        "--session-chunk",
+        type=int,
+        default=2_000_000,
+        help="session ids per chunk when building the training examples (0: one chunk)",
     )
     parser.add_argument("--device", default=None)
     parser.add_argument("--seed", type=int, default=0)

@@ -3,7 +3,7 @@ import datetime
 import numpy as np
 import polars as pl
 import torch
-from gru_data import inference_inputs, training_examples
+from gru_data import inference_inputs, training_examples, training_examples_chunked
 from gru_model import CONFIGS, GRU, Config, false_negative_mask
 from gru_train import combine, padded, predict, tensors
 
@@ -129,3 +129,26 @@ def test_combine():
     b = pl.DataFrame({"session": [1], "cand": [12], "score": [1.0]})
     got = combine({"gru_F_cl": a, "gru_T_cl": b})
     assert got.rows() == [(1, 10, 0.6, 0.0), (1, 11, 0.4, 0.0), (1, 12, 0.0, 1.0)]
+
+
+def test_training_examples_chunked():
+    """Chunks over session ids give the same examples as one pass."""
+    rng = np.random.default_rng(1)
+    sessions = [
+        (
+            s,
+            [
+                (int(a), int(t))
+                for a, t in zip(
+                    rng.integers(50, size=n), rng.integers(3, size=n), strict=True
+                )
+            ],
+        )
+        for s, n in enumerate(rng.integers(1, 70, size=60))
+    ]
+    events = _events(sessions)
+    keys = ["target", "item", "type", "rank", "target_type"]
+    want = training_examples(events).collect().sort(keys)
+    for chunk in (1, 7, 1000):
+        got = training_examples_chunked(events, chunk).sort(keys)
+        assert got.equals(want)

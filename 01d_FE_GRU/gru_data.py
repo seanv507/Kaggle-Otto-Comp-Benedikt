@@ -61,6 +61,34 @@ def training_examples(events: pl.LazyFrame | pl.DataFrame) -> pl.LazyFrame:
 
 
 @beartype
+def training_examples_chunked(
+    events: pl.LazyFrame | pl.DataFrame, session_chunk: int | None = 2_000_000
+) -> pl.DataFrame:
+    """training_examples, collected over session ranges of `session_chunk` ids.
+
+    Before its slices, training_examples holds each target's row with the session's
+    whole MAX_TARGETS + SEQ lists: on the full data ~140M rows x 59 values, past
+    Polars' 2^32 length limit. Chunks keep each intermediate below it. A filter keeps
+    the events' order within a session, which session_lists relies on.
+    """
+    lf = events.lazy()
+    if session_chunk is None:
+        return training_examples(lf).collect()
+    lo, hi = (
+        lf.select(lo=pl.col("session").min(), hi=pl.col("session").max())
+        .collect()
+        .row(0)
+    )
+    parts = [
+        training_examples(
+            lf.filter(pl.col("session").is_between(s, s + session_chunk, closed="left"))
+        ).collect()
+        for s in range(lo, hi + 1, session_chunk)
+    ]
+    return pl.concat(parts, rechunk=False)
+
+
+@beartype
 def inference_inputs(events: pl.LazyFrame | pl.DataFrame) -> pl.LazyFrame:
     """(session, item, type, rank): the last SEQ events, ranked SEQ + 1 down to 2."""
     lf = session_lists(events, SEQ)
