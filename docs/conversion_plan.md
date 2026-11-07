@@ -5,6 +5,7 @@ Status on 2026-11-07:
 - **Step 1 (`folds.py`):** done on branch `polars-folds`.
 - **Step 2 (`01f` previous visits and session features):** done on branch `polars-simple-features`, which is based on `polars-folds`.
 - **Step 3 (`01f` item activity):** done on branch `polars-item-features`, which is based on `polars-simple-features`.
+- **Step 5 (`01c` Chris's covisits):** done on branch `polars-covisits`, which is based on `polars-item-features`. It's checked on a 2% sample; the full run is for the A100.
 
 How the work is done:
 - Each step is developed and tested locally on its own branch, on a sample of the sessions.
@@ -91,13 +92,19 @@ These are `c2o`, carts-orders, buy2buy, clicks, weighted clicks and weighted typ
 - `get_candidates` on a hand-checked example;
 - candidate recall per source.
 
-### 5. `01c` Chris's covisitation matrices, Benny's way
+### 5. `01c` Chris's covisitation matrices, Benny's way — done
 All 10 matrices that Benny uses (93, 115, 217, 220, 226, 232, 235, 239, 700, 701) are already ported in `../Kaggle-OTTO-Comp/train/covisit_matrices/covisits.py`, with parity tests. The work here:
 - **Share the code.** Decide how this repo uses the sibling's `covisits.py`. A uv path dependency is better than a copy.
 - **Check the definitions.** Diff Benny's `03_CoMatrix-99-Chris-gpu-*.ipynb` against Chris's notebooks to confirm they are the same, and note any changes.
 - **Port the apply step.** Port `04_CoMatrix-99-Chris-apply.ipynb`. It splits sessions at 2-hour gaps and produces `chris__<i>__{wgt,dummy,t_*,d_*,l_*}` features. It reads hard-coded `/otto/data_radek/...` paths and `sessions[0]+sessions[1]`, so check that it really loops over folds.
 
 **Test:** the apply step against a reference port, then candidate recall.
+
+As built: `01c_FE_CoVisit_2_Chris/chris_covisits.py` (see its README).
+- **Definitions:** Benny's pair logic is Chris's, line for line. Benny differs only in the top kept per aid (700: none, so it's empty) and in intermediate pruning, which isn't reproducible.
+- **Apply step:** it loops over all 5 folds. Its sorted file order numbers the matrices (`chris__0` is 115).
+- **Reference test:** passes against Benny's code run on pandas.
+- **For the A100:** on the 2% sample, `sub` has up to 4M rows per matrix per fold, so about 200M on the full data. That's 10 matrices × 5 folds × 2 datasets of such files, so size the pod's disk and RAM for it.
 
 ### 6. `01a` Word2Vec, per fold
 gensim on `fe_events(k)` sessions; the output is the item embeddings. gensim is CPU-only and pip-installable, so this step only needs its input changed.

@@ -67,11 +67,32 @@ def heldout_sessions(
     return _scan(sessions_eval).filter(pl.col("fold") == k).select("session", "part")
 
 
+def _is_heldout(k: int, sessions_eval: Frame) -> pl.Expr:
+    """`session` is one of fold k's held-out sessions.
+
+    An `is_in` filter rather than a semi or anti join: a filter keeps the row order,
+    which the covisit matrices rely on (the order of a session's events stands in for
+    their time order), while a join on the streaming engine doesn't.
+    """
+    # a Python list: the GPU engine fails on a Series (imploded or not) when the
+    # filter is pushed into a parquet scan
+    held = heldout_sessions(k, sessions_eval).collect()["session"].to_list()
+    return pl.col("session").is_in(held)
+
+
+# Benny's per-file loop: test, the fold's truncated sessions, then his train files of
+# 100,000 sessions each (00_Preprocess/01_Preprocess.ipynb, chunksize 100_000)
+BENNY_TRAIN_FILE_SESSIONS = 100_000
+BENNY_GROUP_TRUNCATED = 1_000_000
+BENNY_GROUP_TEST = 1_000_001
+
+
 @beartype
 def fe_events(
     k: int,
     sample: float = 1.0,
     *,
+    benny_files: bool = False,
     train: Frame = paths.TRAIN,
     truncated: Frame = paths.XGB_TRAIN_X,
     test: Frame = paths.TEST,
@@ -82,13 +103,26 @@ def fe_events(
     TRAIN without fold k's held-out sessions, those sessions truncated, and TEST. This
     is the `files_split` / `isin(sess_eval)` block at the top of Benny's 01* notebooks.
     Within a session the events keep their file order.
+
+    benny_files: add `_group`, the file Benny's loop read the event from, for the
+    one matrix whose result depends on it (Chris's 239).
     """
-    held = heldout_sessions(k, sessions_eval).select("session")
+    held = _is_heldout(k, sessions_eval)
     parts = [
-        _scan(train).join(held, on="session", how="anti"),
-        _scan(truncated).join(held, on="session", how="semi"),
+        _scan(train).filter(~held),
+        _scan(truncated).filter(held),
         _scan(test),
     ]
+    if benny_files:
+        groups = [
+            pl.col("session") // BENNY_TRAIN_FILE_SESSIONS,
+            pl.lit(BENNY_GROUP_TRUNCATED),
+            pl.lit(BENNY_GROUP_TEST),
+        ]
+        parts = [
+            p.with_columns(_group=g.cast(pl.Int32))
+            for p, g in zip(parts, groups, strict=True)
+        ]
     return sample_sessions(pl.concat(parts), sample)
 
 
@@ -113,11 +147,7 @@ def candidate_events(
     elif k is None:
         events = _scan(truncated)
     else:
-        events = _scan(truncated).join(
-            heldout_sessions(k, sessions_eval).select("session"),
-            on="session",
-            how="semi",
-        )
+        events = _scan(truncated).filter(_is_heldout(k, sessions_eval))
     return sample_sessions(events, sample)
 
 

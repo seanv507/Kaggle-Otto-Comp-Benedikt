@@ -3,11 +3,12 @@ import datetime
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
-from previous_visits import previous_visits, reverse_rank
+from previous_visits import previous_visits
 
 from engines import ENGINES
 from engines import engine as to_engine
 from event_types import CARTS, CLICKS, ORDERS
+from session_ops import reverse_rank
 
 EVENT_SCHEMA = {
     "session": pl.Int32,

@@ -25,47 +25,29 @@ from beartype import beartype
 import folds
 import metrics
 from event_types import CARTS, CLICKS, ORDERS
+from session_ops import LOW, recency_weights
 
 # Benny's type_mp per source
 TYPE_WEIGHTS = {
     "pv": {CLICKS: 1.0, CARTS: 6.0, ORDERS: 3.0},
     "pv_2": {CLICKS: 0.5, CARTS: 9.0, ORDERS: 0.5},
 }
-LOW = {"wgt_1": 2**0.1 - 1, "wgt_2": 2**0.5 - 1}
 SOURCES = tuple(TYPE_WEIGHTS)
-
-
-@beartype
-def reverse_rank(events: pl.LazyFrame) -> pl.LazyFrame:
-    """Add `rank`: 1 for a session's most recent event, 2 for the one before, ...
-
-    Benny ranked by a (session, ts desc) sort, whose order among events in the same
-    second depends on cuDF. Here a later event in the file counts as more recent.
-    """
-    # the file position, taken before anything can reorder the rows
-    events = events.with_row_index("i")
-    # ts in seconds (Benny: ts / 1000 as int32) times 2**32, plus the file position:
-    # a unique key per event that sorts by ts, then file order (< 2**63 for real ts)
-    key = pl.col("ts").dt.epoch("s") * 2**32 + pl.col("i").cast(pl.Int64)
-    return events.with_columns(
-        rank=key.rank("ordinal", descending=True).over("session")
-    ).drop("i")
 
 
 @beartype
 def previous_visits(events: pl.LazyFrame | pl.DataFrame, source: str) -> pl.LazyFrame:
     """(session, cand, features) for source `pv` or `pv_2`, sorted by session and cand."""
     weights = TYPE_WEIGHTS[source]
-    lf = reverse_rank(events.lazy())
+    lf = recency_weights(events.lazy())
     ts = pl.col("ts").dt.epoch("s")
     # the GPU engine needs an explicit default; NaN makes an unknown type visible
     type_weight = pl.col("type").replace_strict(
         weights, default=float("nan"), return_dtype=pl.Float64
     )
-    position = (pl.col("rank") - 1) / pl.len().over("session")
     lf = lf.with_columns(
         ts_diff=(ts.max().over("session") - ts).cast(pl.Int32),
-        **{w: (lo + (1 - lo) * position) * type_weight for w, lo in LOW.items()},
+        **{w: pl.col(w) * type_weight for w in LOW},
     )
     wgts = [pl.col(w).sum().cast(pl.Float32).alias(f"{source}_{w}") for w in LOW]
     if source == "pv":

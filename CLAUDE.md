@@ -19,6 +19,7 @@ The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**
 - `00_Preprocess/preprocess.py`
 - `01e_FE_Transformer/` (`t4r_data.py`, `t4r_model.py`, `t4r_train.py`): Benny's Transformers4Rec model, reimplemented in plain PyTorch with HF `XLNetModel`. See its README for the differences from Benny's code and the A100 recall, which beats Benny's.
 - `01f_FE_other/` (`previous_visits.py`, `session_features.py`, `item_features.py`): the `pv` and `pv_2` candidates, the session features and the item activity features. All of them are shared by the folds.
+- `01c_FE_CoVisit_2_Chris/chris_covisits.py`: Chris's 10 matrices per fold, from the sibling's `covisits.py`, and Benny's apply step (`chris__<i>__15` features).
 - `folds.py` (root): the fold inputs (`fe_events(k)`, `candidate_events(k, dataset)`, `labels`), `sample_sessions` for local development, and the candidate-file layout (`write_candidates`, `candidate_paths`, `read_candidates`, `feature_path`). Every per-fold step uses it instead of rebuilding the inputs. `metrics.py` scores any candidate file with recall@k.
 
 `docs/conversion_plan.md` has the remaining steps. Each step goes on its own branch and is developed locally on a sample. The A100 runs come at the end.
@@ -49,6 +50,10 @@ These add to the GPU-engine limits in `../Kaggle-OTTO-Comp/CLAUDE.md`.
   - `filter` inside a `group_by` aggregation. Use a sum of a boolean for counts, and `pl.when(cond).then(x).n_unique()` minus the null (see `01f_FE_other/session_features.py`).
   - `.any()` in a `group_by`. Use `.sum() > 0`.
   - `replace_strict` without an explicit `default`.
+  - `is_in` with a Series (imploded or not) when the filter is pushed into a parquet scan. Pass a Python list.
+- **GPU memory:** the sibling's neighbour-pair matrices (217 and the like) run out of memory on the local 4 GB GPU even in session chunks. Use the streaming engine locally.
+- **Order:** select rows with `is_in` filters, not semi or anti joins, wherever row order matters later (e.g. `folds.fe_events`, whose order the covisit pair functions use as time order).
+- **In a `group_by`, `pl.lit(1).sum()` is 1 per group**, not a row count. Sum a per-row expression, or use `pl.len()`.
 - **Nested windows are quadratic.** An expression with one `.over()` inside another (e.g. `gap(shift().over(s)).cum_sum().over(s)`) took minutes on 7M rows. Compute the inner window in its own `with_columns` first.
 
 ## Environment

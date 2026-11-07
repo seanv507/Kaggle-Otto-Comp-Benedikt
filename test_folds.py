@@ -65,6 +65,49 @@ def test_fe_events_fold_0(engine_name):
     assert_frame_equal(_sorted(got), _sorted(expected))
 
 
+@pytest.mark.parametrize("engine_name", ENGINES)
+def test_fe_events_keeps_the_event_order(engine_name):
+    """Large enough for the streaming engine to split the work; `i` is the file order."""
+    n = 20_000
+    sessions = [s for s in range(n) for _ in range(5)]
+    big = pl.DataFrame(
+        {
+            "session": sessions,
+            "aid": list(range(len(sessions))),
+            "ts": [T0] * len(sessions),
+            "type": [CLICKS] * len(sessions),
+        },
+        schema=EVENT_SCHEMA,
+    ).with_columns(i=pl.int_range(pl.len(), dtype=pl.Int64))
+    held = pl.DataFrame(
+        {"session": list(range(0, n, 7)), "part": 0, "fold": 0},
+        schema={"session": pl.Int32, "part": pl.UInt8, "fold": pl.UInt8},
+    )
+    trunc = big.filter(pl.col("session") % 7 == 0).group_by("session").head(2)
+    got = folds.fe_events(
+        0, train=big, truncated=trunc.sort("i"), test=big.head(0), sessions_eval=held
+    ).collect(engine=engine(engine_name))
+    assert got.height == big.height - 3 * held.height
+    assert got.select((pl.col("i").diff().over("session") > 0).all()).item()
+
+
+def test_benny_file_groups():
+    got = folds.fe_events(0, benny_files=True, **INPUTS).collect()
+    groups = dict(got.select("session", "_group").unique().iter_rows())
+    # sessions 1, 2 come from the truncated file, 3-5 from train file 0, 9 from test
+    assert groups == {
+        1: folds.BENNY_GROUP_TRUNCATED,
+        2: folds.BENNY_GROUP_TRUNCATED,
+        3: 0,
+        4: 0,
+        5: 0,
+        9: folds.BENNY_GROUP_TEST,
+    }
+    big = TRAIN.with_columns(pl.col("session") + 250_000)
+    got = folds.fe_events(0, benny_files=True, **{**INPUTS, "train": big}).collect()
+    assert set(got.filter(pl.col("session") > 250_000)["_group"]) == {2}
+
+
 def test_each_week4_session_is_truncated_in_exactly_one_fold():
     n_events = {s: TRAIN.filter(pl.col("session") == s).height for s in (1, 2, 3, 4)}
     truncated_in = {s: [] for s in n_events}
