@@ -42,25 +42,51 @@ TOP = 50
 TYPE_CODES = {name: code for code, name in TYPE_NAMES.items()}
 
 
+ROWS_PER_SLICE = 5_000_000  # padding all ~126M rows at once nears Polars' 2^32 limit
+
+
 def padded(df: pl.DataFrame, column: str) -> np.ndarray:
     """A list column as an (n, SEQ) array, padded with 0 on the right."""
     filled = (
         pl.col(column)
         .list.concat(pl.lit([0] * SEQ, dtype=pl.List(df.schema[column].inner)))
         .list.head(SEQ)
+        .list.to_array(SEQ)
     )
-    return np.stack(df.select(filled.list.to_array(SEQ)).to_series().to_numpy())
+    blocks = [
+        df.slice(i, ROWS_PER_SLICE).select(filled).to_series().to_numpy()
+        for i in range(0, max(df.height, 1), ROWS_PER_SLICE)
+    ]
+    if len(blocks) == 1:
+        return blocks[0].reshape(df.height, SEQ)
+    out = np.empty((df.height, SEQ), dtype=blocks[0].dtype)
+    for i, block in zip(range(0, df.height, ROWS_PER_SLICE), blocks, strict=True):
+        out[i : i + len(block)] = block
+    return out
+
+
+def example_arrays(df: pl.DataFrame) -> dict[str, np.ndarray]:
+    """The model inputs as numpy arrays, built once: a batch is then an index into
+    them. (Gathering each batch from a ~126M-row Polars frame of list columns kept
+    the A100 idle at under 3 steps/s.)"""
+    out = {c: padded(df, c) for c in ("item", "type", "rank")}
+    out["length"] = df["item"].list.len().to_numpy()
+    if "target" in df.columns:
+        out["target"] = df["target"].to_numpy()
+    return out
+
+
+def batch_tensors(
+    arrays: dict[str, np.ndarray], idx, device
+) -> dict[str, torch.Tensor]:
+    return {
+        k: torch.from_numpy(np.asarray(v[idx], dtype=np.int64)).to(device)
+        for k, v in arrays.items()
+    }
 
 
 def tensors(df: pl.DataFrame, device) -> dict[str, torch.Tensor]:
-    out = {
-        c: torch.from_numpy(padded(df, c).astype(np.int64))
-        for c in ("item", "type", "rank")
-    }
-    out["length"] = torch.from_numpy(df["item"].list.len().to_numpy().astype(np.int64))
-    if "target" in df.columns:
-        out["target"] = torch.from_numpy(df["target"].to_numpy().astype(np.int64))
-    return {k: v.to(device) for k, v in out.items()}
+    return batch_tensors(example_arrays(df), slice(None), device)
 
 
 def pretrained_weights(
@@ -79,11 +105,16 @@ def train(
     opt = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=c.lr)
     order = np.random.default_rng(seed).permutation(examples.height)
     steps = min(max_steps, examples.height // c.batch_size)
+    t0 = time.time()
+    arrays = example_arrays(examples)
+    print(
+        f"    arrays: {sum(a.nbytes for a in arrays.values()) / 1e9:.1f} GB ({time.time() - t0:.0f} s)"
+    )
     model.train()
     start, total = time.time(), 0.0
     for s in range(steps):
-        batch = tensors(
-            examples[order[s * c.batch_size : (s + 1) * c.batch_size]], device
+        batch = batch_tensors(
+            arrays, order[s * c.batch_size : (s + 1) * c.batch_size], device
         )
         loss = model.loss(
             batch["item"],

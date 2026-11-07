@@ -152,3 +152,16 @@ def test_training_examples_chunked():
     for chunk in (1, 7, 1000):
         got = training_examples_chunked(events, chunk).sort(keys)
         assert got.equals(want)
+
+
+def test_padded_in_slices(monkeypatch):
+    """Padding in row slices gives the same array as one pass."""
+    import gru_train
+
+    df = pl.DataFrame(
+        {"x": [[1, 2], [3], [4, 5, 6], [], [7]]}, schema={"x": pl.List(pl.Int32)}
+    )
+    want = padded(df, "x")
+    monkeypatch.setattr(gru_train, "ROWS_PER_SLICE", 2)
+    got = gru_train.padded(df, "x")
+    assert got.shape == (5, 19) and (got == want).all()
