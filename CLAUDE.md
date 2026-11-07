@@ -26,6 +26,7 @@ The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**
 - `01c_FE_CoVisit_2_Chris/chris_covisits.py`: Chris's 10 matrices per fold, from the sibling's `covisits.py`, and Benny's apply step (`chris__<i>__15` features).
 - `ranking/` (root package, `uv run python -m ranking ...`): Benny's three rankers (`02_Clicks`, `03_Carts`, `04_Orders`) as configurations (`SPLITS`, `MODELS`) of one implementation: split, local CV, submission models, the orders chain's stacked scores, combine with the baseline fill, and `submission.csv`. See `ranking/README.md`.
 - `00_submissions/01_baseline/baseline.py`: Chris's public 0.575 baseline, which fills the rankers' short sessions.
+- `run_a100.sh` (root): the whole pipeline on the full data for a cloud GPU pod; `LOCAL=1 SAMPLE=0.02` runs it on a local sample. See its header for the pod's requirements.
 - `folds.py` (root): the fold inputs (`fe_events(k)`, `candidate_events(k, dataset)`, `labels`), `sample_sessions` for local development, and the candidate-file layout (`write_candidates`, `candidate_paths`, `read_candidates`, `feature_path`). Every per-fold step uses it instead of rebuilding the inputs. `metrics.py` scores any candidate file with recall@k.
 
 `docs/conversion_plan.md` has the remaining steps. Each step goes on its own branch and is developed locally on a sample. The A100 runs come at the end.
@@ -73,3 +74,5 @@ These add to the GPU-engine limits in `../Kaggle-OTTO-Comp/CLAUDE.md`.
 - torch comes from an extra: `uv sync --extra cu132` on a GPU machine (CUDA 13.2 wheels), `--extra cpu` otherwise. A plain `uv sync` removes torch.
 - Chris's repo is an editable uv path dependency (`otto = { path = "../Kaggle-OTTO-Comp", editable = true }`), so `import covisits` gives its `train/covisit_matrices/covisits.py`, and edits there take effect without a reinstall. It needs that repo checked out next to this one, on a branch with `train/covisit_matrices` in its hatch `dev-mode-dirs` (`importable-covisits`, until it's merged). Reuse its covisit code rather than copying it. The path dependency also brings in its dependencies, including xgboost.
 - gensim is a dependency (for `01a`). Add others when converting the step that needs them.
+- **Local long runs:** the laptop suspends itself, and a torch process that runs through a suspend can hang (GPU idle, one core at 100%). Wrap long runs in `systemd-inhibit --what=sleep:idle --mode=block ...`.
+- **The torch extra:** a plain `uv run` swaps the CUDA libraries that `--extra cu132` installs. Don't mix the two while a GPU job is running.

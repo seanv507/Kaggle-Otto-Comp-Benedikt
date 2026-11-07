@@ -207,4 +207,6 @@ Left for the A100, in one script like `01e/run_a100.sh`:
 - the rankers on the full candidate sets;
 - the final scores (CV on week 4, "LB" against `TEST_LABELS`).
 
+As built: `run_a100.sh` at the repo root runs every step for all five folds, then the rankers and `submission.csv` with its score on `TEST_LABELS`. Each step leaves a marker, so a rerun after a failure resumes. `LOCAL=1 SAMPLE=0.02 FOLDS="0 1"` runs it on the local sample. That run (2026-11-07) gave 0.551, as the steps run one by one did. The GRU features change nothing at 300 steps.
+
 `01e` was the exception: its full run is already done, and its candidates are on HF in `benny_t4r/`. Local work on the rankers (step 8) can download them instead of using the small local model's candidates.
