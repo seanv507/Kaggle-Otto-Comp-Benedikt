@@ -20,6 +20,7 @@ The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**
 - `01e_FE_Transformer/` (`t4r_data.py`, `t4r_model.py`, `t4r_train.py`): Benny's Transformers4Rec model, reimplemented in plain PyTorch with HF `XLNetModel`. See its README for the differences from Benny's code and the A100 recall, which beats Benny's.
 - `01f_FE_other/` (`previous_visits.py`, `session_features.py`, `item_features.py`): the `pv` and `pv_2` candidates, the session features and the item activity features. All of them are shared by the folds.
 - `01a_FE_Word2Vec/word2vec.py`: 50-d gensim Word2Vec item embeddings per fold (`data_folds/fold_<k>/word2vec.parquet`).
+- `01d_FE_GRU/` (`gru_data.py`, `gru_model.py`, `gru_train.py`): Benny's 6 GRU configurations per fold in plain PyTorch, written as the candidate source `gru_scores_20`.
 - `01e_FE_Transformer/t4r_fetch.py`: installs the A100 run's candidates from HF as the shared `t4r` source.
 - `01b_FE_CoVisit_1/benny_covisits.py`: Benny's 6 matrices per fold and their 7 candidate sources (`c2o_15`, `caco_15`, `b2b_15`, `caco_b2b_15`, `clicks_20`, `weighted_30`, `weighted_1_2_20`).
 - `01c_FE_CoVisit_2_Chris/chris_covisits.py`: Chris's 10 matrices per fold, from the sibling's `covisits.py`, and Benny's apply step (`chris__<i>__15` features).

@@ -123,9 +123,14 @@ gensim on `fe_events(k)` sessions; the output is the item embeddings. gensim is 
 
 As built: `01a_FE_Word2Vec/word2vec.py`, which writes parquet (`aid`, `emb`) per fold. On 5% of fold 0, the mean cosine to an aid's top `caco` partner is 0.88, against 0.47 to a random aid.
 
-### 7. `01d` GRU, per fold (needs step 6)
+### 7. `01d` GRU, per fold (needs step 6) — done
 `train_gru.py` and `to_sparse.py` use the Merlin dataloader with torch. Port them the way `01e` was ported: a plain PyTorch model, a dataloader built from Polars, and the Word2Vec weights as initialisation. Its candidates are `gru_scores_20`.
 **Test:** the same pattern as `01e`, with a tiny model that must learn a pattern and recall@20 tracked against any numbers logged in Benny's notebooks.
+
+As built: `01d_FE_GRU/` (`gru_data.py`, `gru_model.py`, `gru_train.py`; see its README).
+- **Plain PyTorch:** Benny's 6 configurations, with the examples built in memory with Polars list slices. Benny's notebooks log no recall to track against.
+- **Local check:** 2% of fold 0, 300 steps, width 32: about 5 minutes for all 6 models, and it writes `gru_scores_20` for `train` and `sub`. Recall is low at that size, so it only checks the pipeline. The real numbers come from the A100.
+- **For the A100:** about 150M training examples per fold, held in RAM.
 
 ### 8. Thin end-to-end slice for clicks (start this early) — done
 Build `02_Clicks` against only the sources that exist at that point: `pv`, `t4r`, one covisit, and the session and item features. The parts are:
