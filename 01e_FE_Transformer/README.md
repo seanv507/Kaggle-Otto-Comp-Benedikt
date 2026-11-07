@@ -11,11 +11,14 @@ uv run pytest 01e_FE_Transformer
 
 For the full run on a cloud GPU, `run_a100.sh` does all of the steps above, from the inputs on HF to uploading the candidates. Its header explains how to launch it as a Runpod start command. The full model needs a large GPU. The item table is 1.85M × 256, and with its gradients and Adam state that's about 8 GB before activations. On the local 4 GB GPU, run a smaller version, e.g. `--d-model 32 --n-head 4 --sample 0.02`.
 
+To use the A100 run's candidates locally, run `uv run python 01e_FE_Transformer/t4r_fetch.py`. It downloads `benny_t4r/cand_{train,sub}.parquet` from the HF dataset (1.4 GB), checks them, installs them as the shared `t4r` source and prints their recall. It needs about 12 GB of RAM.
+
 | file | replaces | does |
 |---|---|---|
 | `t4r_data.py` | `01_T4R_Preprocess.ipynb` | item ids, and the last 20 items of every session |
 | `t4r_model.py` | T4R + `custom_t4r.py` | the model and its loss |
 | `t4r_train.py` | `02_T4R_Train-v2.ipynb`, `03_Convert.ipynb` | training, recall@20, candidate files |
+| `t4r_fetch.py` | | installs the A100 run's candidates from HF |
 
 Benny's `custom_t4r.py` was deleted in commit `1a76a2e`. Read it with `git show 83e570e:01e_FE_Transformer/custom_t4r.py`.
 
