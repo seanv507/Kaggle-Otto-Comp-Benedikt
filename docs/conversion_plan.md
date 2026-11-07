@@ -7,6 +7,7 @@ Status on 2026-11-07:
 - **Step 3 (`01f` item activity):** done on branch `polars-item-features`, which is based on `polars-simple-features`.
 - **Step 4 (`01b` Benny's covisits):** done on branch `polars-benny-covisits`, which is based on `polars-covisits`. It's checked on a 2% sample; the full run is for the A100.
 - **Step 6 (`01a` Word2Vec):** done on branch `polars-word2vec`, which is based on `polars-benny-covisits`. That branch also has `t4r_fetch.py`, which installed the A100 `t4r` candidates locally.
+- **Step 8 (clicks ranker):** done on branch `polars-clicks-ranker`, which is based on `polars-word2vec`. It doesn't have the Word2Vec features (step 9) and the baseline fill (step 11). It's checked on a 2% sample of folds 0 and 1.
 - **Step 5 (`01c` Chris's covisits):** done on branch `polars-covisits`, which is based on `polars-item-features`. It's checked on a 2% sample; the full run is for the A100.
 
 How the work is done:
@@ -123,7 +124,7 @@ As built: `01a_FE_Word2Vec/word2vec.py`, which writes parquet (`aid`, `emb`) per
 `train_gru.py` and `to_sparse.py` use the Merlin dataloader with torch. Port them the way `01e` was ported: a plain PyTorch model, a dataloader built from Polars, and the Word2Vec weights as initialisation. Its candidates are `gru_scores_20`.
 **Test:** the same pattern as `01e`, with a tiny model that must learn a pattern and recall@20 tracked against any numbers logged in Benny's notebooks.
 
-### 8. Thin end-to-end slice for clicks (start this early)
+### 8. Thin end-to-end slice for clicks (start this early) — done
 Build `02_Clicks` against only the sources that exist at that point: `pv`, `t4r`, one covisit, and the session and item features. The parts are:
 - **`01_Split`:** merge the candidate files, keep the top `no_cands` per source, add features and labels, and write chunks.
 - **`03_XGB`:** XGBoost rank or binary training on folds ≠ *k* and prediction for fold *k*, plus prediction for `sub`. `xgboost` has a CUDA build on PyPI.
@@ -136,6 +137,11 @@ Write these as one module parametrized by target, not three copies.
 - clicks recall@20 locally on week 4 and on the Kaggle test.
 
 This gives a working pipeline and a number, and each later source can be judged by how much it adds.
+
+As built: the `ranking/` package (`split`, `train`, `combine`) with `02_Clicks/split.py` and `02_Clicks/ranker.py` (see `02_Clicks/README.md`).
+- It uses every source built so far.
+- On a 2% sample: CV recall@20 is 0.475, and the Kaggle-test recall@20 is 0.463. Both are limited by the 2% covisit matrices: the candidates hold only 50% of the click labels.
+- The 25 score files (5 folds × 5 models) and the combine follow Benny. There's no CSV yet.
 
 ### 9. `02_Split_2_Add_Emb_Features` (needs step 6)
 Cosine similarity between the candidate and the session's items, aggregated. Benny used `pandarallel` row loops. In Polars it can be an `explode`, a join and a group-by, or a numpy batch matmul.

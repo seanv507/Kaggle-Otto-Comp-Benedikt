@@ -17,13 +17,17 @@ def top_k(cands: Frame, score: str, k: int, descending: bool = True) -> pl.LazyF
     """(session, aid): each session's k best candidates by `score`.
 
     Ties are broken by the smaller cand, so the result doesn't depend on row order.
+    An ordinal rank after the sort (rather than int_range, which the GPU engine
+    doesn't support in a window) breaks ties by position, so by cand.
     """
     return (
         cands.lazy()
         .select("session", "cand", score)
         .sort("session", score, "cand", descending=[False, descending, False])
-        .with_columns(n=pl.int_range(pl.len()).over("session"))
-        .filter(pl.col("n") < k)
+        .with_columns(
+            n=pl.col(score).rank("ordinal", descending=descending).over("session")
+        )
+        .filter(pl.col("n") <= k)
         .select("session", aid="cand")
     )
 
