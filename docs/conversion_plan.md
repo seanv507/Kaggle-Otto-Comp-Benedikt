@@ -7,8 +7,9 @@ Status on 2026-11-07:
 - **Step 3 (`01f` item activity):** done on branch `polars-item-features`, which is based on `polars-simple-features`.
 - **Step 4 (`01b` Benny's covisits):** done on branch `polars-benny-covisits`, which is based on `polars-covisits`. It's checked on a 2% sample; the full run is for the A100.
 - **Step 6 (`01a` Word2Vec):** done on branch `polars-word2vec`, which is based on `polars-benny-covisits`. That branch also has `t4r_fetch.py`, which installed the A100 `t4r` candidates locally.
-- **Step 8 (clicks ranker):** done on branch `polars-clicks-ranker`, which is based on `polars-word2vec`. It doesn't have the baseline fill (step 11). It's checked on a 2% sample of folds 0 and 1.
+- **Step 8 (clicks ranker):** done on branch `polars-clicks-ranker`, which is based on `polars-word2vec`. The baseline fill came with step 11. It's checked on a 2% sample of folds 0 and 1.
 - **Step 9 (Word2Vec features):** done for clicks on branch `polars-emb-features`, which is based on `polars-clicks-ranker`.
+- **Step 11 (baseline):** done on branch `polars-baseline`, which is based on `polars-emb-features`. The clicks combine now fills short sessions from it.
 - **Step 5 (`01c` Chris's covisits):** done on branch `polars-covisits`, which is based on `polars-item-features`. It's checked on a 2% sample; the full run is for the A100.
 
 How the work is done:
@@ -156,10 +157,14 @@ As built: `ranking/emb_features.py`, added in `ranking/split.py`, and checked ag
 
 **Test:** the same as step 8, plus a check that the hierarchical features exist for every row.
 
-### 11. `00_submissions/01_baseline`
+### 11. `00_submissions/01_baseline` — done
 Chris's public LB 0.575 solution fills sessions with fewer than 20 recommendations. It's small: three covisits and a rule. Either port it, or replace it with the sibling repo's popular-item padding lists.
 
 **Test:** its recall on the Kaggle test against Chris's published 0.575.
+
+As built: `00_submissions/01_baseline/baseline.py`. Its matrices come from `benny_covisits` (the same pair rules), and Chris's two rules are checked against his own code.
+- **Score:** 0.545 on a 5% sample, where the matrices are weaker. The full run, which should approach 0.575, needs the A100's RAM.
+- **Fill:** `ranking/combine.fill` tops up the rankers' short sessions with it, as Benny's `prep_xgb` did.
 
 ## Suggested order
 

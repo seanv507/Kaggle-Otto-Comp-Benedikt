@@ -4,7 +4,7 @@ import numpy as np
 import polars as pl
 import xgboost as xgb
 
-from ranking.combine import combined_scores, top20
+from ranking.combine import combined_scores, fill, top20
 from ranking.train import (
     XGB_PARAMS,
     _matrix,
@@ -89,3 +89,25 @@ def test_top20():
     assert got.height == 20 and got["rank"].to_list() == list(range(20))
     # the 5 with score 4 first, smaller cands first
     assert got["cand"].to_list()[:5] == [4, 9, 14, 19, 24]
+
+
+def test_fill_tops_up_from_the_baseline():
+    top = pl.DataFrame(
+        {"session": [1, 1, 2], "cand": [10, 11, 20], "rank": [0, 1, 0]},
+        schema={"session": I32, "cand": I32, "rank": pl.UInt8},
+    )
+    base = pl.DataFrame(
+        {
+            # session 1: 11 is already there, so 12, then 13, ...; session 3 isn't ours
+            "session": [1] * 25 + [3],
+            "aid": [11, *range(12, 36), 99],
+            "rank": [*range(25), 0],
+        },
+        schema={"session": I32, "aid": I32, "rank": pl.Int64},
+    )
+    got = fill(top, base).collect()
+    s1 = got.filter(pl.col("session") == 1)
+    assert s1["cand"].to_list() == [10, 11, *range(12, 30)]
+    assert s1["rank"].to_list() == list(range(20))
+    assert got.filter(pl.col("session") == 2)["cand"].to_list() == [20]
+    assert 3 not in got["session"].to_list()

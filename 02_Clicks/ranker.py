@@ -3,8 +3,9 @@
 ranking/combine.py. Needs 02_Clicks/split.py's chunks for the same --sample.
 
     cv    local CV on week 4: recall@20, and the best number of trees
-    sub   the submission models (Benny: 394 trees), their scores, and the combined
-          top 20 with its recall on the Kaggle test (TEST_LABELS)
+    sub      the submission models (Benny: 394 trees), their scores, and the combined
+             top 20 with its recall on the Kaggle test (TEST_LABELS)
+    combine  only the last part: the combined top 20, filled from the baseline
 
 Run from the repo root:
     uv run python 02_Clicks/ranker.py cv --sample 0.02 --folds 0 1
@@ -23,7 +24,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("mode", choices=["cv", "sub"])
+    parser.add_argument("mode", choices=["cv", "sub", "combine"])
     parser.add_argument(
         "--folds", type=int, nargs="+", default=list(range(folds.N_FOLDS))
     )
@@ -39,5 +40,6 @@ if __name__ == "__main__":
     if args.mode == "cv":
         train.cv(TARGET, args.sample, args.folds, params=params)
     else:
-        train.sub(TARGET, args.sample, args.folds, args.trees, params=params)
+        if args.mode == "sub":
+            train.sub(TARGET, args.sample, args.folds, args.trees, params=params)
         combine.main(TARGET, args.sample, args.folds, args.folds)

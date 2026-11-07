@@ -234,6 +234,12 @@ def output_root(sample: float = 1.0) -> Path:
     )
 
 
+def baseline_dir(sample: float = 1.0) -> Path:
+    """Chris's baseline (00_submissions/01_baseline): DATA_TMP/baseline[/sample_<f>]."""
+    base = paths.DATA_TMP / "baseline"
+    return base if sample >= 1.0 else base / f"sample_{sample:g}"
+
+
 @beartype
 def fold_dir(k: int | None, root: Path = paths.DATA_FOLDS) -> Path:
     """DATA_FOLDS/fold_<k>, or DATA_FOLDS/shared for k None."""

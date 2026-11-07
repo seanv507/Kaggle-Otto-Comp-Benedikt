@@ -32,7 +32,7 @@ They need every candidate source and feature file of the same `--sample`:
 - **Submission:**
   - **Models:** one per fold, trained on that fold's 2 chunks, sessions with a positive only, 3 seeds × 394 trees (Benny's number).
   - **Scoring:** every model scores every fold's `sub` features.
-  - **Combine:** the seeds and pairs are summed onto the first pair's candidates (fold 0, model 0), and each session's top 20 is kept.
+  - **Combine:** the seeds and pairs are summed onto the first pair's candidates (fold 0, model 0), and each session's top 20 is kept. Sessions with fewer than 20 are filled from Chris's baseline (`00_submissions/01_baseline`) when it exists. `ranker.py combine` reruns only this part.
 - **XGBoost:** `max_depth 8, learning_rate 0.1, subsample 0.8, colsample_bytree 0.3, binary:logistic`, on CUDA.
 
 ## Checks on a 2% sample of folds 0 and 1
@@ -41,7 +41,7 @@ They need every candidate source and feature file of the same `--sample`:
 |---|---|---|
 | split | 77 candidates per session, 169 features; the candidates hold 50.4% of the click labels | 71 s |
 | CV | recall@20 0.474 (0.475 without the Word2Vec features); best iteration 50 on average | 41 s |
-| submission, 50 trees | Kaggle test recall@20 0.463; 5,896 of 33,436 sessions have fewer than 20 | 36 s |
+| submission, 50 trees | Kaggle test recall@20 0.463 (Chris's baseline on the same sample: 0.431); 5,896 of 33,436 sessions have fewer than 20, and 5,860 still do after the fill, because the baseline's lists are short too | 36 s |
 
 These numbers come from covisit matrices built on 2% of the sessions, so the candidates are weak. The A100 `t4r` candidates alone score 0.50 here, but Benny's clicks ranker uses `t4r` only as features, not as candidates. The real comparison has to wait for the full sources.
 
@@ -54,7 +54,6 @@ These numbers come from covisit matrices built on 2% of the sessions, so the can
   - **`t4r_rank` is 0 for candidates without a `t4r` row**, which looks like t4r's best rank. That comes from the fill with 0, as with Benny's rank column, which he called `order`.
 - **Ties:** at the top-80 cut, and in the final top 20, ties go to the smaller cand. Benny's went by cuDF's sort order.
 - **Not done yet:**
-  - **Short sessions aren't filled.** Benny topped them up from Chris's public 0.575 submission (step 11).
 - **Word2Vec similarities:** each distinct (cand, aid) pair's cosine is computed once, in numpy batches, instead of Benny's `pandarallel` loop over rows. They're added while splitting instead of rewriting the chunks afterwards.
 - **Outputs:** the scores and top 20 are under `data_folds/.../ranker/clicks/`, not `../00_submissions/<run name>/`. There's no CSV yet; the final submission comes with the orders ranker.
 - **XGBoost 3:** `tree_method=hist, device=cuda`, which replaces `gpu_hist`.

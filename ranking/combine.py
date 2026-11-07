@@ -6,8 +6,8 @@ fold; the score of a pair is the sum of its seeds. As in Benny's get_df, the fir
 pair's (session, cand) rows are the candidates, and every other pair's score is added
 where it has the row. Each session's top 20 by the summed score are written to
     <root>/ranker/<target>/sub_top20.parquet   (session, cand, rank)
-Benny then filled sessions with fewer than 20 from Chris's public 0.575 submission;
-that comes with the baseline (conversion plan, step 11).
+Sessions with fewer than 20 are then filled from Chris's public 0.575 baseline
+(00_submissions/01_baseline, folds.baseline_dir), as Benny did, if it exists.
 """
 
 from pathlib import Path
@@ -51,6 +51,32 @@ def combined_scores(
 
 
 @beartype
+def fill(
+    top: pl.LazyFrame | pl.DataFrame, baseline: pl.LazyFrame | pl.DataFrame
+) -> pl.LazyFrame:
+    """Top up each session of `top` (session, cand, rank) to 20 with the baseline's
+    (session, aid, rank) items it doesn't have, in the baseline's order (Benny's
+    prep_xgb). Sessions only in the baseline are left out, as in Benny's merge."""
+    ours = top.lazy().select(
+        "session", "cand", src=pl.lit(0), pos=pl.col("rank").cast(pl.Int64)
+    )
+    sessions = ours.select("session").unique()
+    base = (
+        baseline.lazy()
+        .join(sessions, on="session", how="semi")
+        .select("session", cand="aid", src=pl.lit(1), pos=pl.col("rank").cast(pl.Int64))
+    )
+    return (
+        pl.concat([ours, base])
+        .sort("session", "src", "pos")
+        .unique(KEY, keep="first", maintain_order=True)
+        .with_columns(rank=pl.int_range(pl.len(), dtype=pl.UInt8).over("session"))
+        .filter(pl.col("rank") < 20)
+        .select("session", "cand", "rank")
+    )
+
+
+@beartype
 def top20(scores: pl.LazyFrame | pl.DataFrame) -> pl.LazyFrame:
     """(session, cand, rank): each session's 20 best by score (rank 0 is best)."""
     return (
@@ -65,6 +91,15 @@ def main(target: str, sample: float, fold_ids: list[int], model_ids: list[int]) 
     top = top20(combined_scores(target, root, fold_ids, model_ids)).collect(
         engine="in-memory"
     )
+    baseline = folds.baseline_dir(sample) / f"{target}.parquet"
+    if baseline.exists():
+        short = top.group_by("session").len().filter(pl.col("len") < 20).height
+        top = fill(top, pl.scan_parquet(baseline)).collect(engine="in-memory")
+        print(
+            f"filled {short:,} sessions with fewer than 20 from {baseline.relative_to(baseline.parents[2])}"
+        )
+    else:
+        print(f"no baseline at {baseline}: sessions with fewer than 20 aren't filled")
     path = root / "ranker" / target / "sub_top20.parquet"
     top.write_parquet(path)
     labels = folds.sample_sessions(folds.labels(None, "sub"), sample).filter(
