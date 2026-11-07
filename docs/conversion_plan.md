@@ -3,6 +3,7 @@
 Status on 2026-11-07:
 - **Done, on master:** `00_Preprocess`, and `01e_FE_Transformer`. The full A100 run of `01e` beat Benny's recall@20 (week 4: 0.503/0.392/0.524 against his 0.455/0.331/0.491).
 - **Step 1 (`folds.py`):** done on branch `polars-folds`.
+- **Step 2 (`01f` previous visits and session features):** done on branch `polars-simple-features`, which is based on `polars-folds`.
 
 How the work is done:
 - Each step is developed and tested locally on its own branch, on a sample of the sessions.
@@ -62,11 +63,15 @@ As built:
 - `uv run python folds.py --check` checks the folds on the real data (4 s).
 - `01e` now writes its candidates through `write_candidates` as the shared source `t4r`.
 
-### 2. `01f` simple features (no fold dependence)
+### 2. `01f` simple features (no fold dependence) — done
 - `04_PreviousVisits*.ipynb` (`pv`, `pv_2`): history items as candidates, with recency and type weights.
 - `96_Session_Features.ipynb`: session length, day, time, and so on.
 
 **Test:** hand-checked frames. For `pv`, its candidate recall on week 4.
+
+As built: see `01f_FE_other/README.md`.
+- Recall@20 of `pv` on week 4 is 0.322/0.308/0.589.
+- Both scripts run on the full data locally in under a minute, since they only read the week-4 and test events, so their outputs exist locally already.
 
 ### 3. `01f` item activity features: `95_Cand_Features.ipynb`
 Clicks, carts and orders per item on the same day and over the previous 1, 2 and 3 weeks. There are two files, `*_cand_meta_comb` (per fold) and `*_cand_day_meta_comb`.

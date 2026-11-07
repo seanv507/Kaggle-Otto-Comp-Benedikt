@@ -5,6 +5,7 @@ import pytest
 from polars.testing import assert_frame_equal
 
 import folds
+import paths
 from engines import ENGINES, engine
 from event_types import CARTS, CLICKS, ORDERS
 
@@ -187,6 +188,14 @@ def test_candidate_paths_and_shared_sources(tmp_path):
         1, "train", "c2o_15", tmp_path, sessions_eval=SESSIONS_EVAL
     ).collect()
     assert c2o.rows() == [(3, 31)]
+
+
+def test_output_root_keeps_samples_apart():
+    assert folds.output_root() == paths.DATA_FOLDS
+    assert folds.output_root(0.05) == paths.DATA_FOLDS / "sample_0.05"
+    assert folds.feature_path(None, "x", folds.output_root(0.05)) == (
+        paths.DATA_FOLDS / "sample_0.05" / "shared" / "x.parquet"
+    )
 
 
 def test_candidate_paths_rejects_a_source_in_both_places(tmp_path):

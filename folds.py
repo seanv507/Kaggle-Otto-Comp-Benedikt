@@ -147,9 +147,30 @@ def _check_dataset(dataset: str):
 
 
 @beartype
+def output_root(sample: float = 1.0) -> Path:
+    """Where a step's outputs go: DATA_FOLDS, or DATA_FOLDS/sample_<fraction> on a sample.
+
+    So a run on a sample never overwrites the full outputs, and the steps after it
+    read the outputs of the same sample.
+    """
+    return (
+        paths.DATA_FOLDS if sample >= 1.0 else paths.DATA_FOLDS / f"sample_{sample:g}"
+    )
+
+
+@beartype
 def fold_dir(k: int | None, root: Path = paths.DATA_FOLDS) -> Path:
     """DATA_FOLDS/fold_<k>, or DATA_FOLDS/shared for k None."""
     return root / (SHARED if k is None else f"fold_{k}")
+
+
+@beartype
+def feature_path(k: int | None, name: str, root: Path = paths.DATA_FOLDS) -> Path:
+    """A feature file (not candidates), e.g. Benny's train_sessions.parquet.
+
+    k None: shared by all folds.
+    """
+    return fold_dir(k, root) / f"{name}.parquet"
 
 
 @beartype
