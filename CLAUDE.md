@@ -19,6 +19,8 @@ The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**
 - `00_Preprocess/preprocess.py`
 - `01e_FE_Transformer/` (`t4r_data.py`, `t4r_model.py`, `t4r_train.py`): Benny's Transformers4Rec model, reimplemented in plain PyTorch with HF `XLNetModel`. See its README for the differences from Benny's code and the A100 recall, which beats Benny's.
 - `01f_FE_other/` (`previous_visits.py`, `session_features.py`, `item_features.py`): the `pv` and `pv_2` candidates, the session features and the item activity features. All of them are shared by the folds.
+- `01a_FE_Word2Vec/word2vec.py`: 50-d gensim Word2Vec item embeddings per fold (`data_folds/fold_<k>/word2vec.parquet`).
+- `01e_FE_Transformer/t4r_fetch.py`: installs the A100 run's candidates from HF as the shared `t4r` source.
 - `01b_FE_CoVisit_1/benny_covisits.py`: Benny's 6 matrices per fold and their 7 candidate sources (`c2o_15`, `caco_15`, `b2b_15`, `caco_b2b_15`, `clicks_20`, `weighted_30`, `weighted_1_2_20`).
 - `01c_FE_CoVisit_2_Chris/chris_covisits.py`: Chris's 10 matrices per fold, from the sibling's `covisits.py`, and Benny's apply step (`chris__<i>__15` features).
 - `folds.py` (root): the fold inputs (`fe_events(k)`, `candidate_events(k, dataset)`, `labels`), `sample_sessions` for local development, and the candidate-file layout (`write_candidates`, `candidate_paths`, `read_candidates`, `feature_path`). Every per-fold step uses it instead of rebuilding the inputs. `metrics.py` scores any candidate file with recall@k.
@@ -66,4 +68,4 @@ These add to the GPU-engine limits in `../Kaggle-OTTO-Comp/CLAUDE.md`.
 - Editable install with hatch `dev-mode-dirs = ["."]`, so scripts in numbered directories can import `paths` and `event_types`. Tests import modules from their own directory.
 - torch comes from an extra: `uv sync --extra cu132` on a GPU machine (CUDA 13.2 wheels), `--extra cpu` otherwise. A plain `uv sync` removes torch.
 - Chris's repo is an editable uv path dependency (`otto = { path = "../Kaggle-OTTO-Comp", editable = true }`), so `import covisits` gives its `train/covisit_matrices/covisits.py`, and edits there take effect without a reinstall. It needs that repo checked out next to this one, on a branch with `train/covisit_matrices` in its hatch `dev-mode-dirs` (`importable-covisits`, until it's merged). Reuse its covisit code rather than copying it. The path dependency also brings in its dependencies, including xgboost.
-- Add other dependencies (gensim and so on) when converting the step that needs them.
+- gensim is a dependency (for `01a`). Add others when converting the step that needs them.

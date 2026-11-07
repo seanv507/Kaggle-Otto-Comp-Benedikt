@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "beartype>=0.22.9",
     "cudf-polars-cu13>=26.10",
+    "gensim>=4.4",
     "numpy>=2.2.6",
     # Chris's part (../Kaggle-OTTO-Comp), for its covisits.py: a path dependency below
     "otto",

@@ -6,6 +6,7 @@ Status on 2026-11-07:
 - **Step 2 (`01f` previous visits and session features):** done on branch `polars-simple-features`, which is based on `polars-folds`.
 - **Step 3 (`01f` item activity):** done on branch `polars-item-features`, which is based on `polars-simple-features`.
 - **Step 4 (`01b` Benny's covisits):** done on branch `polars-benny-covisits`, which is based on `polars-covisits`. It's checked on a 2% sample; the full run is for the A100.
+- **Step 6 (`01a` Word2Vec):** done on branch `polars-word2vec`, which is based on `polars-benny-covisits`. That branch also has `t4r_fetch.py`, which installed the A100 `t4r` candidates locally.
 - **Step 5 (`01c` Chris's covisits):** done on branch `polars-covisits`, which is based on `polars-item-features`. It's checked on a 2% sample; the full run is for the A100.
 
 How the work is done:
@@ -112,9 +113,11 @@ As built: `01c_FE_CoVisit_2_Chris/chris_covisits.py` (see its README).
 - **Reference test:** passes against Benny's code run on pandas.
 - **For the A100:** on the 2% sample, `sub` has up to 4M rows per matrix per fold, so about 200M on the full data. That's 10 matrices × 5 folds × 2 datasets of such files, so size the pod's disk and RAM for it.
 
-### 6. `01a` Word2Vec, per fold
+### 6. `01a` Word2Vec, per fold — done
 gensim on `fe_events(k)` sessions; the output is the item embeddings. gensim is CPU-only and pip-installable, so this step only needs its input changed.
 **Test:** a small corpus with `workers=1` and a fixed seed for determinism, plus a sanity check that frequently co-visited items are close.
+
+As built: `01a_FE_Word2Vec/word2vec.py`, which writes parquet (`aid`, `emb`) per fold. On 5% of fold 0, the mean cosine to an aid's top `caco` partner is 0.88, against 0.47 to a random aid.
 
 ### 7. `01d` GRU, per fold (needs step 6)
 `train_gru.py` and `to_sparse.py` use the Merlin dataloader with torch. Port them the way `01e` was ported: a plain PyTorch model, a dataloader built from Polars, and the Word2Vec weights as initialisation. Its candidates are `gru_scores_20`.
