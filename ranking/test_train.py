@@ -10,6 +10,7 @@ from ranking.train import (
     _matrix,
     _with_positive,
     feature_columns,
+    model_groups,
     score_path,
     train_chunks,
 )
@@ -20,10 +21,19 @@ I32 = pl.Int32
 def test_train_chunks():
     files = [Path(f"fold_{k}/train_{i}") for k in range(3) for i in (0, 1)]
     # clicks: the first 2 other chunks in (fold, chunk) order
-    assert train_chunks(files, files[0], "clicks") == files[1:3]
-    assert train_chunks(files, files[4], "clicks") == files[0:2]
-    # carts and orders: all other chunks
-    assert train_chunks(files, files[4], "carts") == files[:4] + files[5:]
+    assert train_chunks(files, files[0], 2) == files[1:3]
+    assert train_chunks(files, files[4], 2) == files[0:2]
+    # orders: all other chunks
+    assert train_chunks(files, files[4], None) == files[:4] + files[5:]
+
+
+def test_model_groups():
+    files = [Path(f"fold_{k}/train_{i}") for k in range(5) for i in (0, 1)]
+    assert model_groups(files, 2) == [
+        files[i : i + 2] for i in range(0, 10, 2)
+    ]  # clicks: 5 models
+    assert model_groups(files, 5) == [files[:5], files[5:]]  # carts: 2 models
+    assert model_groups(files, None) == [files]  # orders: 1 model
 
 
 def test_with_positive():
@@ -111,3 +121,13 @@ def test_fill_tops_up_from_the_baseline():
     assert s1["rank"].to_list() == list(range(20))
     assert got.filter(pl.col("session") == 2)["cand"].to_list() == [20]
     assert 3 not in got["session"].to_list()
+
+
+def test_n_models_matches_benny():
+    from ranking.train import n_models
+
+    folds5 = list(range(5))
+    assert n_models("clicks", folds5) == 5
+    assert n_models("carts", folds5) == 2
+    assert n_models("orders", folds5) == 1
+    assert n_models("carts", [0, 1]) == 1  # a 2-fold sample: 4 chunks

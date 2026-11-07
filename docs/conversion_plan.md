@@ -10,6 +10,7 @@ Status on 2026-11-07:
 - **Step 8 (clicks ranker):** done on branch `polars-clicks-ranker`, which is based on `polars-word2vec`. The baseline fill came with step 11. It's checked on a 2% sample of folds 0 and 1.
 - **Step 9 (Word2Vec features):** done for clicks on branch `polars-emb-features`, which is based on `polars-clicks-ranker`.
 - **Step 11 (baseline):** done on branch `polars-baseline`, which is based on `polars-emb-features`. The clicks combine now fills short sessions from it.
+- **Step 10 (carts and orders rankers):** done on branch `polars-carts-orders`, which is based on `polars-baseline`. The whole pipeline now runs end to end on the 2% sample, ending in `submission.csv` (Kaggle-test score 0.551, against 0.526 for the baseline).
 - **Step 5 (`01c` Chris's covisits):** done on branch `polars-covisits`, which is based on `polars-item-features`. It's checked on a 2% sample; the full run is for the A100.
 
 How the work is done:
@@ -151,11 +152,16 @@ Cosine similarity between the candidate and the session's items, aggregated. Ben
 
 As built: `ranking/emb_features.py`, added in `ranking/split.py`, and checked against a pandas port of Benny's code. On the 2% sample, clicks CV recall@20 is 0.474 with these features and 0.475 without. The carts and orders versions of the notebook come with step 10.
 
-### 10. Carts and orders rankers
+### 10. Carts and orders rankers — done
 - **Carts:** the step 8 module with `target="carts"`, plus its own candidate rules (more candidates, kept only if 2 or more sources agree).
 - **Orders (`04_Orders`):** the hierarchical setup. The click and cart models are trained on order sessions (`03_XGB_Clicks`, `04_XGB_Carts`), and their scores become features for the order model (`05a`/`05b`). Then `06_Combine-Bags` writes the final submission.
 
 **Test:** the same as step 8, plus a check that the hierarchical features exist for every row.
+
+As built: every ranker is a configuration of the `ranking` package (`SPLITS`, `MODELS`; see `ranking/README.md`), run as `python -m ranking`. The clicks scripts of step 8 went into the same CLI.
+- **Orders chain:** the click and cart models' mean scores are written into the later chunks as `xgb_c_score` and `xgb_ca_score`.
+- **Results on 2%:** carts CV 0.402, orders CV 0.657.
+- **Two of Benny's bugs are worked around and documented:** his `03_XGB_Clicks` seed count was undefined, and his orders combine read a column that was never written.
 
 ### 11. `00_submissions/01_baseline` — done
 Chris's public LB 0.575 solution fills sessions with fewer than 20 recommendations. It's small: three covisits and a rule. Either port it, or replace it with the sibling repo's popular-item padding lists.

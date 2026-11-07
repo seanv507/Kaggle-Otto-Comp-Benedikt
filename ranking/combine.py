@@ -19,31 +19,31 @@ import folds
 import metrics
 
 from .split import KEY, TARGET_CODES
-from .train import N_SEEDS, score_path
+from .train import MODELS, score_path
 
 
-def _pair_scores(root, target: str, fold: int, model: int) -> pl.LazyFrame:
+def _pair_scores(root, chunks: str, fold: int, model: int) -> pl.LazyFrame:
+    """A (fold, model) pair's score: the sum of its seeds' score_<s> columns."""
     files = sorted(
-        score_path(root, target, fold, model, 0).parent.glob(
+        score_path(root, chunks, fold, model, 0).parent.glob(
             f"fold_{fold}_model_{model}_*.parquet"
         )
     )
     if not files:
         raise FileNotFoundError(f"no scores for fold {fold}, model {model}")
-    seeds = pl.sum_horizontal(f"score_{s}" for s in range(N_SEEDS))
-    return pl.concat([pl.scan_parquet(f) for f in files]).select(
-        *KEY, score=seeds.cast(pl.Float64)
-    )
+    lf = pl.concat([pl.scan_parquet(f) for f in files])
+    seeds = [c for c in lf.collect_schema().names() if c.startswith("score_")]
+    return lf.select(*KEY, score=pl.sum_horizontal(seeds).cast(pl.Float64))
 
 
 @beartype
 def combined_scores(
-    target: str, root: Path, fold_ids: list[int], model_ids: list[int]
+    chunks: str, root: Path, fold_ids: list[int], model_ids: list[int]
 ) -> pl.LazyFrame:
     pairs = [(f, m) for f in fold_ids for m in model_ids]
-    lf = _pair_scores(root, target, *pairs[0])
+    lf = _pair_scores(root, chunks, *pairs[0])
     for f, m in pairs[1:]:
-        other = _pair_scores(root, target, f, m).rename({"score": "other"})
+        other = _pair_scores(root, chunks, f, m).rename({"score": "other"})
         lf = lf.join(other, on=KEY, how="left").select(
             *KEY, score=pl.col("score") + pl.col("other").fill_null(0)
         )
@@ -86,12 +86,13 @@ def top20(scores: pl.LazyFrame | pl.DataFrame) -> pl.LazyFrame:
     )
 
 
-def main(target: str, sample: float, fold_ids: list[int], model_ids: list[int]) -> None:
+def main(name: str, sample: float, fold_ids: list[int], n_models: int) -> pl.DataFrame:
+    """The combined, filled top 20 of MODELS[name]'s submission scores."""
+    spec = MODELS[name]
     root = folds.output_root(sample)
-    top = top20(combined_scores(target, root, fold_ids, model_ids)).collect(
-        engine="in-memory"
-    )
-    baseline = folds.baseline_dir(sample) / f"{target}.parquet"
+    scores = combined_scores(spec.chunks, root, fold_ids, list(range(n_models)))
+    top = top20(scores).collect(engine="in-memory")
+    baseline = folds.baseline_dir(sample) / f"{spec.target}.parquet"
     if baseline.exists():
         short = top.group_by("session").len().filter(pl.col("len") < 20).height
         top = fill(top, pl.scan_parquet(baseline)).collect(engine="in-memory")
@@ -100,16 +101,17 @@ def main(target: str, sample: float, fold_ids: list[int], model_ids: list[int]) 
         )
     else:
         print(f"no baseline at {baseline}: sessions with fewer than 20 aren't filled")
-    path = root / "ranker" / target / "sub_top20.parquet"
+    path = root / "ranker" / spec.chunks / "sub_top20.parquet"
     top.write_parquet(path)
     labels = folds.sample_sessions(folds.labels(None, "sub"), sample).filter(
-        pl.col("type") == TARGET_CODES[target]
+        pl.col("type") == TARGET_CODES[spec.target]
     )
     r = metrics.recall(
         top.with_columns(score=-pl.col("rank").cast(pl.Int32)), labels, "score"
-    )[target]
+    )[spec.target]
     short = top.group_by("session").len().filter(pl.col("len") < 20).height
     print(
         f"wrote {path.relative_to(root.parent)}: {top['session'].n_unique():,} sessions "
-        f"({short:,} with fewer than 20); Kaggle test {target} recall@20 {r:.4f}"
+        f"({short:,} with fewer than 20); Kaggle test {spec.target} recall@20 {r:.4f}"
     )
+    return top

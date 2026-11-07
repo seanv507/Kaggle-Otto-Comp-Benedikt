@@ -23,7 +23,7 @@ The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**
 - `01e_FE_Transformer/t4r_fetch.py`: installs the A100 run's candidates from HF as the shared `t4r` source.
 - `01b_FE_CoVisit_1/benny_covisits.py`: Benny's 6 matrices per fold and their 7 candidate sources (`c2o_15`, `caco_15`, `b2b_15`, `caco_b2b_15`, `clicks_20`, `weighted_30`, `weighted_1_2_20`).
 - `01c_FE_CoVisit_2_Chris/chris_covisits.py`: Chris's 10 matrices per fold, from the sibling's `covisits.py`, and Benny's apply step (`chris__<i>__15` features).
-- `ranking/` (root package) with `02_Clicks/split.py` and `02_Clicks/ranker.py`: Benny's clicks ranker (split, XGBoost local CV and submission models, combine). The carts and orders rankers will reuse `ranking/`.
+- `ranking/` (root package, `uv run python -m ranking ...`): Benny's three rankers (`02_Clicks`, `03_Carts`, `04_Orders`) as configurations (`SPLITS`, `MODELS`) of one implementation: split, local CV, submission models, the orders chain's stacked scores, combine with the baseline fill, and `submission.csv`. See `ranking/README.md`.
 - `00_submissions/01_baseline/baseline.py`: Chris's public 0.575 baseline, which fills the rankers' short sessions.
 - `folds.py` (root): the fold inputs (`fe_events(k)`, `candidate_events(k, dataset)`, `labels`), `sample_sessions` for local development, and the candidate-file layout (`write_candidates`, `candidate_paths`, `read_candidates`, `feature_path`). Every per-fold step uses it instead of rebuilding the inputs. `metrics.py` scores any candidate file with recall@k.
 

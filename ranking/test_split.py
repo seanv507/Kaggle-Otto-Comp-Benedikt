@@ -7,7 +7,14 @@ from polars.testing import assert_frame_equal
 from engines import ENGINES
 from engines import engine as to_engine
 from event_types import CARTS, CLICKS, ORDERS
-from ranking.split import add_features, add_sources, add_target, candidates
+from ranking.split import (
+    SPLITS,
+    add_features,
+    add_sources,
+    add_target,
+    candidates,
+    generator_columns,
+)
 
 I32 = pl.Int32
 
@@ -109,3 +116,29 @@ def test_add_target():
         1,
         0,
     ]
+
+
+def test_candidates_min_sources():
+    sources = {
+        "a": _source([(1, 10), (1, 11)], a_wgt=[2.0, 1.0]),
+        "b": _source([(1, 10), (1, 12)], b_wgt=[1.0, 2.0]),
+    }
+    got = candidates(sources, {"a": "a_wgt", "b": "b_wgt"}, n=5, min_sources=2)
+    assert got.collect().rows() == [(1, 10)]  # the only cand both propose
+
+
+def test_generator_columns():
+    sources = {
+        "c2o_15": _source([(1, 10)], c2o_wgt_15=[1], c2o_num_15=[1]),
+        "t4r": _source([(1, 10)], t4r_rank=[0], t4r_score=[0.5]),
+        "gru_scores_20": _source([(1, 10)], gru_score=[0.1]),
+    }
+    spec = SPLITS["carts"]
+    assert generator_columns(sources, spec) == {
+        "c2o_15": "c2o_wgt_15",
+        "t4r": "t4r_score",
+    }
+    bad = {"x": _source([(1, 10)], something=[1])}
+    with pytest.raises(ValueError, match="ranking columns"):
+        generator_columns(bad, spec)
+    assert generator_columns(sources, SPLITS["clicks"]) == {"c2o_15": "c2o_wgt_15"}

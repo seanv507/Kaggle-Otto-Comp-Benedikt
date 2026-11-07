@@ -70,3 +70,12 @@ CLICKS_GENERATORS = {
     "caco_b2b_15": "caco_b2b_wgt_15",
 }
 NO_CANDS = 80  # per generating source
+
+# Benny's list_sort_columns: a source generates candidates ranked by the one of its
+# columns in this list (the carts and orders rankers take every source but the GRU's)
+LIST_SORT_COLUMNS = [
+    "c2o_wgt_15", "clicks_wgt_20", "b2b_wgt_15", "caco_wgt_15", "pv_wgt_1",
+    "weighted_wgt_30", "weighted_1_2_wgt_sum_2", "t4r_score", "caco_b2b_wgt_15",
+    "pv_2_wgt_1", "caco_df__wgt_15",
+    *[f"chris__{i}__wgt_1" for i in range(10)],
+]  # fmt: skip
