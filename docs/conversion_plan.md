@@ -5,6 +5,7 @@ Status on 2026-11-07:
 - **Step 1 (`folds.py`):** done on branch `polars-folds`.
 - **Step 2 (`01f` previous visits and session features):** done on branch `polars-simple-features`, which is based on `polars-folds`.
 - **Step 3 (`01f` item activity):** done on branch `polars-item-features`, which is based on `polars-simple-features`.
+- **Step 4 (`01b` Benny's covisits):** done on branch `polars-benny-covisits`, which is based on `polars-covisits`. It's checked on a 2% sample; the full run is for the A100.
 - **Step 5 (`01c` Chris's covisits):** done on branch `polars-covisits`, which is based on `polars-item-features`. It's checked on a 2% sample; the full run is for the A100.
 
 How the work is done:
@@ -84,13 +85,18 @@ As built: `01f_FE_other/item_features.py`, with shared files `item_features_*` a
 - `day_` (`folds.day_index`) matches Benny's tables;
 - Benny's doubled `p0w` counts are kept.
 
-### 4. `01b` Benny's covisitation matrices (6 notebooks)
+### 4. `01b` Benny's covisitation matrices (6 notebooks) — done
 These are `c2o`, carts-orders, buy2buy, clicks, weighted clicks and weighted types. Each one builds a matrix from `fe_events(k)`, then candidates from a shared `get_candidates`. That function sums the matrix weights over the session's items into `<prefix>_num/rank_min/wgt/wgt_2/wgt_cl/wgt_ca/wgt_or`. Reuse `build_covisits` / `top_covisit` from the sibling repo's `covisits.py` (see step 5).
 
 **Test:**
 - each matrix against a pandas reference port on random sessions;
 - `get_candidates` on a hand-checked example;
 - candidate recall per source.
+
+As built: `01b_FE_CoVisit_1/benny_covisits.py` (see its README).
+- **Not Chris's matrices:** they're Benny's own variants. For example, his buy2buy takes the last 30 events with a 14-day window, while Chris's 90 has no last-30 limit. So they're implemented here with the sibling's helpers rather than its `make_covisits_*`.
+- **Reference ports:** every matrix and candidate function is checked against a pandas port of Benny's code.
+- **Kept bugs:** `caco_b2b` is empty, and the int16 casts wrap around.
 
 ### 5. `01c` Chris's covisitation matrices, Benny's way — done
 All 10 matrices that Benny uses (93, 115, 217, 220, 226, 232, 235, 239, 700, 701) are already ported in `../Kaggle-OTTO-Comp/train/covisit_matrices/covisits.py`, with parity tests. The work here:

@@ -108,6 +108,20 @@ def test_benny_file_groups():
     assert set(got.filter(pl.col("session") > 250_000)["_group"]) == {2}
 
 
+def test_benny_file_chunks():
+    # sorted names: train_0, train_1, train_10, train_100, ..., train_109, train_11, ...
+    groups = pl.DataFrame(
+        {"_group": [0, 1, 10, 100, 109, 11, 128, folds.BENNY_GROUP_TEST]},
+        schema={"_group": pl.Int32},
+    )
+    got = groups.select(folds.benny_file_chunks(3)).to_series().to_list()
+    # 129 // 3 = 43 chunks, dealt round-robin over the sorted names
+    names = sorted(f"train_{e}" for e in range(129))
+    expected = [names.index(f"train_{e}") % 43 for e in [0, 1, 10, 100, 109, 11, 128]]
+    assert expected[:5] == [0, 1, 2, 3, 12]
+    assert got == expected + [folds.BENNY_GROUP_TEST]
+
+
 def test_each_week4_session_is_truncated_in_exactly_one_fold():
     n_events = {s: TRAIN.filter(pl.col("session") == s).height for s in (1, 2, 3, 4)}
     truncated_in = {s: [] for s in n_events}

@@ -83,8 +83,32 @@ def _is_heldout(k: int, sessions_eval: Frame) -> pl.Expr:
 # Benny's per-file loop: test, the fold's truncated sessions, then his train files of
 # 100,000 sessions each (00_Preprocess/01_Preprocess.ipynb, chunksize 100_000)
 BENNY_TRAIN_FILE_SESSIONS = 100_000
+BENNY_TRAIN_FILES = 129  # train sessions 0..12,899,778
 BENNY_GROUP_TRUNCATED = 1_000_000
 BENNY_GROUP_TEST = 1_000_001
+
+
+def benny_file_chunks(files_per_chunk: int) -> pl.Expr:
+    """Map `_group` (from fe_events(benny_files=True)) to Benny's chunk of files.
+
+    His loops read `[test], [xgb_train_x] + list_in_chunks(files, len(files) //
+    files_per_chunk)`, where `files` are his train files sorted by name (train_0,
+    train_1, train_10, train_100, ...) and list_in_chunks deals them out round-robin.
+    The test and truncated groups stay as they are.
+    """
+    names = sorted(f"train_{e}.parquet" for e in range(BENNY_TRAIN_FILES))
+    n_chunks = BENNY_TRAIN_FILES // files_per_chunk
+    chunk = {
+        int(name[len("train_") : -len(".parquet")]): i % n_chunks
+        for i, name in enumerate(names)
+    }
+    g = pl.col("_group")
+    return (
+        pl.when(g < BENNY_GROUP_TRUNCATED)
+        # the GPU engine needs an explicit default
+        .then(g.replace_strict(chunk, default=-1, return_dtype=pl.Int32))
+        .otherwise(g)
+    )
 
 
 @beartype
@@ -105,7 +129,8 @@ def fe_events(
     Within a session the events keep their file order.
 
     benny_files: add `_group`, the file Benny's loop read the event from, for the
-    one matrix whose result depends on it (Chris's 239).
+    matrices whose result depends on it (Chris's 239; Benny's weighted clicks, with
+    benny_file_chunks).
     """
     held = _is_heldout(k, sessions_eval)
     parts = [
