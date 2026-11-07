@@ -21,6 +21,7 @@ Run from the repo root to check the folds on the real data:
 """
 
 import argparse
+import datetime
 from pathlib import Path
 
 import polars as pl
@@ -139,6 +140,26 @@ def labels(
     return lf.join(
         heldout_sessions(k, sessions_eval).select("session"), on="session", how="semi"
     )
+
+
+# the day each dataset's week of candidates starts on (UTC; the weeks start at 22:00
+# the day before, which Benny counted as day 0 too)
+WEEK_START = {"train": datetime.date(2022, 8, 22), "sub": datetime.date(2022, 8, 29)}
+
+
+@beartype
+def day_index(dataset: str, ts: pl.Expr | None = None) -> pl.Expr:
+    """Benny's `day_` of a timestamp in the dataset's week: 0 for the first two calendar
+    days (the week starts at 22:00 UTC), then 1 to 6.
+
+    Benny mapped day of month to day_ with a table (train 21, 22 -> 0, 23 -> 1, ...,
+    28 -> 6; sub 28, 29 -> 0, ..., Sep 4 -> 6). Here it's integer arithmetic, which
+    the GPU engine runs; clipped below at 0.
+    """
+    _check_dataset(dataset)
+    ts = pl.col("ts") if ts is None else ts
+    first = (WEEK_START[dataset] - datetime.date(1970, 1, 1)).days
+    return (ts.dt.epoch("s") // 86_400 - first).clip(lower_bound=0).cast(pl.Int8)
 
 
 def _check_dataset(dataset: str):

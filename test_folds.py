@@ -190,6 +190,22 @@ def test_candidate_paths_and_shared_sources(tmp_path):
     assert c2o.rows() == [(3, 31)]
 
 
+@pytest.mark.parametrize("engine_name", ENGINES)
+def test_day_index_matches_bennys_tables(engine_name):
+    # Benny's day-of-month -> day_ tables
+    tables = {
+        "train": {21: 0, 22: 0, 23: 1, 24: 2, 25: 3, 26: 4, 27: 5, 28: 6},
+        "sub": {28: 0, 29: 0, 30: 1, 31: 2, 1: 3, 2: 4, 3: 5, 4: 6},
+    }
+    for dataset, table in tables.items():
+        start = datetime.datetime.combine(folds.WEEK_START[dataset], datetime.time())
+        # each hour of the week, from 22:00 the day before it starts
+        ts = [start + datetime.timedelta(hours=h - 2) for h in range(7 * 24)]
+        df = pl.LazyFrame({"ts": ts}, schema={"ts": pl.Datetime("ms")})
+        got = df.select(folds.day_index(dataset)).collect(engine=engine(engine_name))
+        assert got.to_series().to_list() == [table[t.day] for t in ts]
+
+
 def test_output_root_keeps_samples_apart():
     assert folds.output_root() == paths.DATA_FOLDS
     assert folds.output_root(0.05) == paths.DATA_FOLDS / "sample_0.05"

@@ -18,7 +18,7 @@ The sibling repo `../Kaggle-OTTO-Comp` is Chris Deotte's part, and it is being c
 The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**, one pipeline step at a time, next to the notebooks they replace. Done so far:
 - `00_Preprocess/preprocess.py`
 - `01e_FE_Transformer/` (`t4r_data.py`, `t4r_model.py`, `t4r_train.py`): Benny's Transformers4Rec model, reimplemented in plain PyTorch with HF `XLNetModel`. See its README for the differences from Benny's code and the A100 recall, which beats Benny's.
-- `01f_FE_other/` (`previous_visits.py`, `session_features.py`): the `pv` and `pv_2` candidates and the session features, all shared by the folds. `95_Cand_Features.ipynb` isn't converted yet.
+- `01f_FE_other/` (`previous_visits.py`, `session_features.py`, `item_features.py`): the `pv` and `pv_2` candidates, the session features and the item activity features. All of them are shared by the folds.
 - `folds.py` (root): the fold inputs (`fe_events(k)`, `candidate_events(k, dataset)`, `labels`), `sample_sessions` for local development, and the candidate-file layout (`write_candidates`, `candidate_paths`, `read_candidates`, `feature_path`). Every per-fold step uses it instead of rebuilding the inputs. `metrics.py` scores any candidate file with recall@k.
 
 `docs/conversion_plan.md` has the remaining steps. Each step goes on its own branch and is developed locally on a sample. The A100 runs come at the end.

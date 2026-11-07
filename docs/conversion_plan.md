@@ -4,6 +4,7 @@ Status on 2026-11-07:
 - **Done, on master:** `00_Preprocess`, and `01e_FE_Transformer`. The full A100 run of `01e` beat Benny's recall@20 (week 4: 0.503/0.392/0.524 against his 0.455/0.331/0.491).
 - **Step 1 (`folds.py`):** done on branch `polars-folds`.
 - **Step 2 (`01f` previous visits and session features):** done on branch `polars-simple-features`, which is based on `polars-folds`.
+- **Step 3 (`01f` item activity):** done on branch `polars-item-features`, which is based on `polars-simple-features`.
 
 How the work is done:
 - Each step is developed and tested locally on its own branch, on a sample of the sessions.
@@ -17,7 +18,7 @@ How the work is done:
                ├─> 01c Chris's covisits (per fold)        ─┤
                ├─> 01e Transformer (shared)               ─┤  candidate files
                ├─> 01f previous visits (shared)           ─┤  data_folds/fold_k/candidates/{train,sub}/<source>/cand.parquet
-               ├─> 01f item activity features (per fold)  ─┤  + feature files
+               ├─> 01f item activity features (shared)    ─┤  + feature files
                └─> 01f session features (shared)          ─┘
                                                             │
 00_submissions baseline (fills sessions with < 20 recs)     │
@@ -28,7 +29,7 @@ How the work is done:
 
 Most steps are independent because they only meet through files with a fixed layout:
 - **Candidate sources** (`01b`, `01c`, `01d`, `01e`, `01f` previous visits) each write `(session, cand, <prefix>_*)` for the truncated week-4 sessions (`train`) and the Kaggle test sessions (`sub`).
-- **Feature files** (`01f` 95/96, `01a` embeddings) are keyed by `cand`, `session` or `aid`.
+- **Feature files** (`01f` 95/96, `01a` embeddings) are keyed by `cand`, `session` or `aid`. The `01f` ones are shared by the folds: `data_folds/shared/{session,item,item_day}_features_{train,sub}.parquet`.
 - **The rankers** read whatever candidate files exist.
 
 So each source can be built and tested alone. The rankers can then be built against a few sources and pick up the others as they're added.
@@ -73,9 +74,14 @@ As built: see `01f_FE_other/README.md`.
 - Recall@20 of `pv` on week 4 is 0.322/0.308/0.589.
 - Both scripts run on the full data locally in under a minute, since they only read the week-4 and test events, so their outputs exist locally already.
 
-### 3. `01f` item activity features: `95_Cand_Features.ipynb`
-Clicks, carts and orders per item on the same day and over the previous 1, 2 and 3 weeks. There are two files, `*_cand_meta_comb` (per fold) and `*_cand_day_meta_comb`.
+### 3. `01f` item activity features: `95_Cand_Features.ipynb` — done
+Clicks, carts and orders per item on the same day and over the previous 1, 2 and 3 weeks. There are two files, `*_cand_meta_comb` and `*_cand_day_meta_comb`. Neither depends on the fold: Benny copied `*_cand_meta_comb` to every fold.
 **Test:** hand-checked counts over a few days. The week windows need care, because `ts` is now a Datetime rather than epoch milliseconds.
+
+As built: `01f_FE_other/item_features.py`, with shared files `item_features_*` and `item_day_features_*`. On the real data:
+- the window totals equal direct counts of `TRAIN`;
+- `day_` (`folds.day_index`) matches Benny's tables;
+- Benny's doubled `p0w` counts are kept.
 
 ### 4. `01b` Benny's covisitation matrices (6 notebooks)
 These are `c2o`, carts-orders, buy2buy, clicks, weighted clicks and weighted types. Each one builds a matrix from `fe_events(k)`, then candidates from a shared `get_candidates`. That function sums the matrix weights over the session's items into `<prefix>_num/rank_min/wgt/wgt_2/wgt_cl/wgt_ca/wgt_or`. Reuse `build_covisits` / `top_covisit` from the sibling repo's `covisits.py` (see step 5).
