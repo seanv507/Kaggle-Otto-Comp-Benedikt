@@ -19,13 +19,14 @@ They need every candidate source and feature file of the same `--sample`:
 | `split.py` → `ranking/split.py` | `01_Split.ipynb` | Writes `data_folds/fold_<k>/ranker/clicks/{train_<i>,sub_<j>}.parquet`. |
 | `ranker.py cv` → `ranking/train.py` | `03_XGB-v19-clicks.ipynb`, `bl_sub = False` | Local CV: recall@20 and the best number of trees. |
 | `ranker.py sub` → `ranking/train.py`, `ranking/combine.py` | `03_XGB-v19-clicks.ipynb`, `bl_sub = True`; `04_Combine-Bags.ipynb` | One model per fold, the scores for every fold's `sub`, and `ranker/clicks/sub_top20.parquet` with its recall on the Kaggle test. |
-| `02_Split_2_Add_Emb_Features-v2.ipynb` | | Word2Vec similarity features (not converted yet, conversion plan step 9). |
+| `split.py` → `ranking/emb_features.py` | `02_Split_2_Add_Emb_Features-v2.ipynb` | Adds the Word2Vec similarity features (`sim_*`) while splitting; `--no-emb` leaves them out. |
 
 ## What each step does
 
 - **Split:**
   - **Candidates:** the union of the top 80 per session from `c2o_15`, `clicks_20`, `b2b_15`, `caco_15`, `pv`, `weighted_30` and `caco_b2b_15`.
   - **Features:** the columns of every candidate source of the fold, except those in Benny's ignore lists (`ranking/benny_columns.py`), with 0 where a source has no row. Then the item, session and same-day item features.
+  - **Word2Vec similarities:** between the cand and the session's items (`sim_1` ... `sim_type_1`, see `ranking/emb_features.py`).
   - **Target:** the clicks label. `train` comes in Benny's 2 chunks per fold and `sub` in 10.
 - **CV:** each chunk is predicted by models trained on the first 2 other chunks. 3 seeds, early stopping on the predicted chunk, at most 1,000 trees. Recall@20 is computed over the chunk's sessions.
 - **Submission:**
@@ -38,8 +39,8 @@ They need every candidate source and feature file of the same `--sample`:
 
 | step | result | time |
 |---|---|---|
-| split | 77 candidates per session, 162 features; the candidates hold 50.4% of the click labels | 49 s |
-| CV | recall@20 0.475; best iteration 44 on average | 41 s |
+| split | 77 candidates per session, 169 features; the candidates hold 50.4% of the click labels | 71 s |
+| CV | recall@20 0.474 (0.475 without the Word2Vec features); best iteration 50 on average | 41 s |
 | submission, 50 trees | Kaggle test recall@20 0.463; 5,896 of 33,436 sessions have fewer than 20 | 36 s |
 
 These numbers come from covisit matrices built on 2% of the sessions, so the candidates are weak. The A100 `t4r` candidates alone score 0.50 here, but Benny's clicks ranker uses `t4r` only as features, not as candidates. The real comparison has to wait for the full sources.
@@ -54,6 +55,6 @@ These numbers come from covisit matrices built on 2% of the sessions, so the can
 - **Ties:** at the top-80 cut, and in the final top 20, ties go to the smaller cand. Benny's went by cuDF's sort order.
 - **Not done yet:**
   - **Short sessions aren't filled.** Benny topped them up from Chris's public 0.575 submission (step 11).
-  - **No Word2Vec features yet** (step 9).
+- **Word2Vec similarities:** each distinct (cand, aid) pair's cosine is computed once, in numpy batches, instead of Benny's `pandarallel` loop over rows. They're added while splitting instead of rewriting the chunks afterwards.
 - **Outputs:** the scores and top 20 are under `data_folds/.../ranker/clicks/`, not `../00_submissions/<run name>/`. There's no CSV yet; the final submission comes with the orders ranker.
 - **XGBoost 3:** `tree_method=hist, device=cuda`, which replaces `gpu_hist`.

@@ -1,7 +1,7 @@
 """Clicks ranker, step 1: candidates and features per fold (Benny's 01_Split.ipynb).
 
 See ranking/split.py. Needs the candidate sources (01b, 01c, 01e, 01f) and the
-shared feature files (01f) of the same --sample.
+shared feature files (01f) and the Word2Vec embeddings (01a) of the same --sample.
 
 Run from the repo root:
     uv run python 02_Clicks/split.py --sample 0.02 --folds 0 1
@@ -32,8 +32,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--engine", default="streaming", help="streaming, in-memory or gpu"
     )
+    parser.add_argument(
+        "--no-emb", action="store_true", help="without the Word2Vec features"
+    )
     args = parser.parse_args()
     engine = pl.GPUEngine(raise_on_fail=True) if args.engine == "gpu" else args.engine
     for k in args.folds:
         for dataset in args.datasets:
-            split.build(k, dataset, TARGET, args.sample, engine)
+            split.build(
+                k, dataset, TARGET, args.sample, engine, with_emb=not args.no_emb
+            )

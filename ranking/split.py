@@ -11,6 +11,8 @@ sessions) it builds one row per (session, cand):
   (item_day_features_* on folds.day_index of the session's last event, 0 where
   missing);
 - for train, `target`: 1 if the cand is one of the session's labels of the target.
+- the fold's Word2Vec similarity features (ranking.emb_features), unless with_emb
+  is False.
 Floats are Float32. The rows are written in chunks, as Benny did:
     data_folds/fold_<k>/ranker/<target>/train_<i>.parquet   i = Benny's 2 parts per fold
     data_folds/fold_<k>/ranker/<target>/sub_<j>.parquet     j = SUB_SESSIONS part // 10
@@ -28,6 +30,7 @@ import paths
 from event_types import TYPE_NAMES
 
 from .benny_columns import CLICKS_GENERATORS, NO_CANDS, TOTAL_IGNORE
+from .emb_features import emb_features
 
 KEY = ["session", "cand"]
 SUB_CHUNK_PARTS = 10  # SUB_SESSIONS parts per sub chunk (Benny's sub_sessoins_10)
@@ -131,8 +134,13 @@ def _chunks(k: int, dataset: str) -> dict[int, list[int]]:
     return {c: g["session"].to_list() for (c,), g in parts.group_by("chunk")}
 
 
-def build(k: int, dataset: str, target: str, sample: float, engine) -> None:
+def build(
+    k: int, dataset: str, target: str, sample: float, engine, with_emb: bool = True
+) -> None:
+    """with_emb: add the Word2Vec similarity features (ranking.emb_features), from
+    the fold's data_folds/fold_<k>/word2vec.parquet (01a)."""
     root = folds.output_root(sample)
+    emb = pl.read_parquet(folds.feature_path(k, "word2vec", root)) if with_emb else None
     for i, sessions in sorted(_chunks(k, dataset).items()):
         start = time.time()
         in_chunk = pl.col("session").is_in(sessions)
@@ -160,6 +168,10 @@ def build(k: int, dataset: str, target: str, sample: float, engine) -> None:
             .sort(KEY)
             .collect(engine=engine)
         )
+        if (
+            emb is not None
+        ):  # Benny's 02_Split_2_Add_Emb_Features, which rewrote the chunks
+            df = df.join(emb_features(df.lazy(), events, emb), on=KEY, how="left")
         path = chunk_path(k, target, dataset, i, root)
         path.parent.mkdir(parents=True, exist_ok=True)
         df.write_parquet(path)

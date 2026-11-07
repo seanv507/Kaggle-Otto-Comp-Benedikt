@@ -7,7 +7,8 @@ Status on 2026-11-07:
 - **Step 3 (`01f` item activity):** done on branch `polars-item-features`, which is based on `polars-simple-features`.
 - **Step 4 (`01b` Benny's covisits):** done on branch `polars-benny-covisits`, which is based on `polars-covisits`. It's checked on a 2% sample; the full run is for the A100.
 - **Step 6 (`01a` Word2Vec):** done on branch `polars-word2vec`, which is based on `polars-benny-covisits`. That branch also has `t4r_fetch.py`, which installed the A100 `t4r` candidates locally.
-- **Step 8 (clicks ranker):** done on branch `polars-clicks-ranker`, which is based on `polars-word2vec`. It doesn't have the Word2Vec features (step 9) and the baseline fill (step 11). It's checked on a 2% sample of folds 0 and 1.
+- **Step 8 (clicks ranker):** done on branch `polars-clicks-ranker`, which is based on `polars-word2vec`. It doesn't have the baseline fill (step 11). It's checked on a 2% sample of folds 0 and 1.
+- **Step 9 (Word2Vec features):** done for clicks on branch `polars-emb-features`, which is based on `polars-clicks-ranker`.
 - **Step 5 (`01c` Chris's covisits):** done on branch `polars-covisits`, which is based on `polars-item-features`. It's checked on a 2% sample; the full run is for the A100.
 
 How the work is done:
@@ -143,9 +144,11 @@ As built: the `ranking/` package (`split`, `train`, `combine`) with `02_Clicks/s
 - On a 2% sample: CV recall@20 is 0.475, and the Kaggle-test recall@20 is 0.463. Both are limited by the 2% covisit matrices: the candidates hold only 50% of the click labels.
 - The 25 score files (5 folds × 5 models) and the combine follow Benny. There's no CSV yet.
 
-### 9. `02_Split_2_Add_Emb_Features` (needs step 6)
+### 9. `02_Split_2_Add_Emb_Features` (needs step 6) — done for clicks
 Cosine similarity between the candidate and the session's items, aggregated. Benny used `pandarallel` row loops. In Polars it can be an `explode`, a join and a group-by, or a numpy batch matmul.
 **Test:** a hand-checked cosine on small embeddings.
+
+As built: `ranking/emb_features.py`, added in `ranking/split.py`, and checked against a pandas port of Benny's code. On the 2% sample, clicks CV recall@20 is 0.474 with these features and 0.475 without. The carts and orders versions of the notebook come with step 10.
 
 ### 10. Carts and orders rankers
 - **Carts:** the step 8 module with `target="carts"`, plus its own candidate rules (more candidates, kept only if 2 or more sources agree).
