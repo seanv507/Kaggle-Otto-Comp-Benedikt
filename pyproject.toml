@@ -8,6 +8,8 @@ dependencies = [
     "beartype>=0.22.9",
     "cudf-polars-cu13>=26.10",
     "numpy>=2.2.6",
+    # Chris's part (../Kaggle-OTTO-Comp), for its covisits.py: a path dependency below
+    "otto",
     # cudf-polars-cu13 26.10 needs polars>=1.35,<1.45; see CLAUDE.md
     "polars[all]>=1.44,<1.45",
     "transformers>=4.46",  # XLNetModel for the 01e transformer
@@ -22,6 +24,7 @@ cu132 = ["torch>=2.15"]
 conflicts = [[{ extra = "cpu" }, { extra = "cu132" }]]
 
 [tool.uv.sources]
+otto = { path = "../Kaggle-OTTO-Comp", editable = true }
 torch = [
   { index = "pytorch-cpu", extra = "cpu" },
   { index = "pytorch-cu132", extra = "cu132" },

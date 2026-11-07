@@ -151,7 +151,7 @@ Chris's public LB 0.575 solution fills sessions with fewer than 20 recommendatio
 | 9 | 11 baseline | only needed for the final submission |
 
 ## Decisions (2026-11-07)
-- **Sharing code with the sibling repo:** a uv path dependency on `../Kaggle-OTTO-Comp`. Its package is `otto`, and `covisits.py` lives in `train/covisit_matrices/`, which isn't importable as a package yet. Step 5 has to make it importable in the sibling repo (for example by adding it to the sibling's hatch `only-include`). The A100 pod then also needs the sibling repo cloned next to this one.
+- **Sharing code with the sibling repo:** an editable uv path dependency on `../Kaggle-OTTO-Comp` (package `otto`). Done on branch `polars-covisits`, together with the sibling's branch `importable-covisits`, which adds `train/covisit_matrices` to its hatch `dev-mode-dirs`, so `import covisits` works here. `run_a100.sh` clones the sibling next to this repo.
 - **How faithful to be:** match Benny bit for bit where it's cheap, and document deliberate differences in each step's README, as in `01e`. One example is the length-1 sessions that Benny gave no T4R candidates.
 - **Compute:** five folds of covisits, Word2Vec and GRU need the A100. Every step takes `--sample` (and chunk parameters where memory needs them) so that it can be developed on the local GPU.
 

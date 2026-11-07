@@ -31,6 +31,9 @@ set -euo pipefail
 
 REPO=${REPO:-https://github.com/seanv507/Kaggle-Otto-Comp-Benedikt.git}
 BRANCH=${BRANCH:-polars-transformer}
+# Chris's part, a path dependency (for covisits.py), cloned next to this repo
+CHRIS_REPO=${CHRIS_REPO:-https://github.com/seanv507/Kaggle-OTTO-Comp.git}
+CHRIS_BRANCH=${CHRIS_BRANCH:-importable-covisits}
 HF_DATASET=${HF_DATASET:-seanv507/kaggle-otto-multi-objective}
 HF_OUT=${HF_OUT:-benny_t4r}  # folder in the HF dataset for the outputs
 WORK=${WORK:-/workspace}
@@ -70,6 +73,8 @@ trap on_exit EXIT
 # 1. code
 command -v uv >/dev/null || { curl -LsSf https://astral.sh/uv/install.sh | sh; export PATH=$HOME/.local/bin:$PATH; }
 cd "$CODE"
+[ -d Kaggle-OTTO-Comp ] || git clone --branch "$CHRIS_BRANCH" "$CHRIS_REPO"
+(cd Kaggle-OTTO-Comp && git fetch origin && git checkout "$CHRIS_BRANCH" && git pull --ff-only)
 [ -d Kaggle-Otto-Comp-Benedikt ] || git clone --branch "$BRANCH" "$REPO"
 cd Kaggle-Otto-Comp-Benedikt
 git fetch origin && git checkout "$BRANCH" && git pull --ff-only

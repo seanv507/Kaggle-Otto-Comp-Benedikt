@@ -56,4 +56,5 @@ These add to the GPU-engine limits in `../Kaggle-OTTO-Comp/CLAUDE.md`.
 - Managed with `uv`. Run from the repo root: `uv run python <dir>/<script>.py` and `uv run pytest`.
 - Editable install with hatch `dev-mode-dirs = ["."]`, so scripts in numbered directories can import `paths` and `event_types`. Tests import modules from their own directory.
 - torch comes from an extra: `uv sync --extra cu132` on a GPU machine (CUDA 13.2 wheels), `--extra cpu` otherwise. A plain `uv sync` removes torch.
-- Only the dependencies needed so far are installed. Add xgboost, gensim and so on when converting the step that needs them.
+- Chris's repo is an editable uv path dependency (`otto = { path = "../Kaggle-OTTO-Comp", editable = true }`), so `import covisits` gives its `train/covisit_matrices/covisits.py`, and edits there take effect without a reinstall. It needs that repo checked out next to this one, on a branch with `train/covisit_matrices` in its hatch `dev-mode-dirs` (`importable-covisits`, until it's merged). Reuse its covisit code rather than copying it. The path dependency also brings in its dependencies, including xgboost.
+- Add other dependencies (gensim and so on) when converting the step that needs them.
