@@ -232,7 +232,8 @@ step other other
 for k in $FOLDS; do
     step "benny_covisits_$k" run 01b_FE_CoVisit_1/benny_covisits.py --folds "$k" "${S[@]}" $BENNY_COVISIT_ARGS
     step "chris_covisits_$k" run 01c_FE_CoVisit_2_Chris/chris_covisits.py --folds "$k" "${S[@]}" $CHRIS_COVISIT_ARGS
-    step "word2vec_$k" run 01a_FE_Word2Vec/word2vec.py --folds "$k" "${S[@]}"
+    # gensim's default is os.cpu_count(), the host's cores, not the container's quota
+    step "word2vec_$k" run 01a_FE_Word2Vec/word2vec.py --folds "$k" "${S[@]}" --workers "${POLARS_MAX_THREADS:-$(nproc)}"
     step "gru_$k" run 01d_FE_GRU/gru_train.py --folds "$k" "${S[@]}" $GRU_ARGS
 done
 step baseline run 00_submissions/01_baseline/baseline.py "${S[@]}"
