@@ -24,6 +24,7 @@ from pathlib import Path
 
 import covisits
 import polars as pl
+import save_covisits
 from beartype import beartype
 
 import folds
@@ -33,6 +34,10 @@ from session_ops import recency_weights
 # Benny's matrices in the order of his sorted file names top_40_aids_v<VER>.parquet,
 # which is how the apply step numbered them (chris__0 = 115, ..., chris__9 = 93)
 ORDER = [115, 217, 220, 226, 232, 235, 239, 700, 701, 93]
+# Sessions per chunk on the GPU: the sibling's A100 defaults. Its all-pairs self-joins
+# (115, 217-235) exceed cudf's 2^31-row column limit unchunked on the full data, and 93
+# runs out of GPU memory. fe_events(k) has about as many sessions as its train + test.
+SESSION_CHUNK = {int(m.ver): m.session_chunk for m in save_covisits.MATRICES}
 # the top kept per aid. Benny's 700 notebook ends with `n < 0`, so his 700 matrix is
 # empty and so are its features; kept as he had it.
 TOP = {
@@ -164,9 +169,10 @@ def main(args):
             else:
                 start = time.time()
                 events = folds.fe_events(k, args.sample, benny_files=ver == 239)
-                df = build_matrix(
-                    events, ver, engine, args.session_chunk, args.agg_engine
+                chunk = args.session_chunk or (
+                    SESSION_CHUNK.get(ver) if args.sample >= 1.0 else None
                 )
+                df = build_matrix(events, ver, engine, chunk, args.agg_engine)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 df.write_parquet(path)
                 print(
@@ -213,7 +219,7 @@ if __name__ == "__main__":
         "--session-chunk",
         type=int,
         default=None,
-        help="sessions per chunk (default: one)",
+        help="sessions per chunk (default: SESSION_CHUNK on the full data, one on a sample)",
     )
     parser.add_argument(
         "--force", action="store_true", help="rebuild existing matrices"

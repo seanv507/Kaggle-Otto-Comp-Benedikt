@@ -12,3 +12,6 @@ data_folds/**/*.parquet
 # intermediate outputs (sequences, checkpoints, candidates)
 data_tmp/*
 !data_tmp/.gitkeep
+
+# ntfy topic of the pods (anyone with it can read their messages)
+ntfy.txt
