@@ -12,6 +12,11 @@ otherwise. Per (session, cand):
     sim_type_1  sum sim over carts and orders / (1 + sim_3)
 Benny computed the cosines row by row with pandarallel; here once per (cand, aid)
 pair, in batches.
+
+This branch (polars-einsum) computes them with Polars Array arithmetic; master keeps
+numpy's einsum. The Polars version is not adopted: on 5 XGBoost seeds per version it
+scored clicks CV 0.0003-0.0004 lower (2% and 5% samples), see
+docs/polars_cosine_check.md.
 """
 
 import polars as pl
