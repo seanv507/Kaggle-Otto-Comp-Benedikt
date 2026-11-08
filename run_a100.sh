@@ -114,6 +114,9 @@ fi
 OUT=$ROOT/data_folds${SAMPLE:+/sample_$SAMPLE}
 on_exit() {
     local status=$?
+    # never stop half-way: a failing command here (e.g. a write to a full disk, as on
+    # 2026-11-08) would otherwise skip the notification and the pod's stop
+    set +e
     echo "run_a100.sh exited with status $status at $(date -u +%FT%TZ)" | tee -a "$LOGS/status.txt"
     if [ "$status" = 0 ]; then
         notify "Finished: $(cat "$LOGS/summary.txt" 2>/dev/null || echo 'no summary')"
@@ -253,6 +256,16 @@ orders() {
 }
 step clicks clicks
 step carts carts
+# The orders models read only fold_*/ranker/orders; the submission reads ranker/*/
+# sub_top20. The covisit matrices (their candidates are written) and the finished clicks
+# and carts splits are deleted first: on 2026-11-08 the 800 GB volume filled up in the
+# orders split without this.
+free_space() {
+    df -h "$WORK"
+    rm -rf "$OUT"/fold_*/covisits "$OUT"/fold_*/ranker/clicks "$OUT"/fold_*/ranker/carts
+    df -h "$WORK"
+}
+step free_space free_space
 step orders orders
 STEP=submission
 run -m ranking submission "${S[@]}" 2>&1 | tee -a "$LOGS/submission.log"
