@@ -48,7 +48,7 @@ def training_examples(events: pl.LazyFrame | pl.DataFrame) -> pl.LazyFrame:
     # t: the target's reverse rank (1 = the session's latest event), with an event before it
     lf = lists.with_columns(
         t=pl.int_ranges(1, pl.min_horizontal(MAX_TARGETS, pl.col("n") - 1) + 1)
-    ).explode("t")
+    ).explode("t", empty_as_null=True)  # 1-event sessions: null, filtered below
     p = pl.col("n") - pl.col("t")  # the target's index in the lists
     start = pl.max_horizontal(p - SEQ, 0)
     return lf.filter(pl.col("t").is_not_null()).select(

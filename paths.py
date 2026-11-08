@@ -1,7 +1,7 @@
 """Data file locations, anchored at the repo root.
 
 Benny's notebooks reached these through per-directory `data` symlinks
-(see create_symbolic_links.sh). Polars code uses these constants instead.
+(his create_symbolic_links.sh, now removed). The scripts use these constants instead.
 The inputs are symlinks created by 00_Preprocess/preprocess.py.
 """
 
