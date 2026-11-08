@@ -5,7 +5,7 @@ import pandas as pd
 import polars as pl
 from polars.testing import assert_frame_equal
 
-from ranking.emb_features import COLUMNS, emb_features
+from ranking.emb_features import COLUMNS, emb_features, similarities
 
 EVENT_SCHEMA = {
     "session": pl.Int32,
@@ -122,3 +122,13 @@ def test_emb_features_match_bennys_code():
     )
     assert got["sim_3"].sum() > 0 and (got["sim_3"] == 0).sum() > 0
     assert_frame_equal(got, expected, rel_tol=1e-5)
+
+
+def test_similarities_no_pairs():
+    emb = pl.DataFrame(
+        {"aid": [1], "emb": [[1.0, 0.0]]},
+        schema={"aid": pl.Int32, "emb": pl.Array(pl.Float32, 2)},
+    )
+    pairs = pl.DataFrame(schema={"cand": pl.Int32, "aid": pl.Int32})
+    got = similarities(pairs, emb)
+    assert got.height == 0 and got.columns == ["cand", "aid", "sim"]
