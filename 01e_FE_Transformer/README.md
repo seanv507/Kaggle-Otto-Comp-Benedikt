@@ -9,7 +9,7 @@ uv run python 01e_FE_Transformer/t4r_train.py          # train, then write the c
 uv run pytest 01e_FE_Transformer
 ```
 
-For the full run on a cloud GPU, `run_a100.sh` does all of the steps above, from the inputs on HF to uploading the candidates. Its header explains how to launch it as a Runpod start command. The full model needs a large GPU. The item table is 1.85M × 256, and with its gradients and Adam state that's about 8 GB before activations. On the local 4 GB GPU, run a smaller version, e.g. `--d-model 32 --n-head 4 --sample 0.02`.
+For the full run on a cloud GPU, `T4R_TRAIN=1 bash run_a100.sh` (the root script) does all of the steps above, from the inputs on HF to uploading the candidates. Without `T4R_TRAIN=1`, the script installs the 2026-11-06 run's candidates with `t4r_fetch.py` instead. The script's header explains how to launch it as a Runpod start command. The full model needs a large GPU. The item table is 1.85M × 256, and with its gradients and Adam state that's about 8 GB before activations. On the local 4 GB GPU, run a smaller version, e.g. `--d-model 32 --n-head 4 --sample 0.02`.
 
 To use the A100 run's candidates locally, run `uv run python 01e_FE_Transformer/t4r_fetch.py`. It downloads `benny_t4r/cand_{train,sub}.parquet` from the HF dataset (1.4 GB), checks them, installs them as the shared `t4r` source and prints their recall. It needs about 12 GB of RAM.
 
@@ -28,7 +28,7 @@ Benny's `custom_t4r.py` was deleted in commit `1a76a2e`. Read it with `git show 
 - `seq_{cv_train,xgb_train_x,test}.parquet`: (`session`, `item`, `type`, `ts`). These are the last 20 events of each session, oldest first, and `ts` is the time of the first kept event.
 - `checkpoints/epoch_{e}.pt`: the model's `state_dict` after each epoch.
 
-The candidates are the shared source `t4r` (see `folds.py`): `data_folds/shared/candidates/train/t4r/cand.parquet` (all week-4 sessions) and `.../sub/t4r/cand.parquet` (Kaggle test sessions). Their columns are (`session`, `cand`, `t4r_rank`, `t4r_score`). These are the top 50 per session, and `t4r_score` is a softmax over those 50. The model doesn't depend on the fold. Benny copied the same files to every `data_folds/fold_*/candidates/{train,sub}/t4r/cand.parquet`; `folds.read_candidates` filters the shared `train` file to the fold instead. `run_a100.sh` uploads them to HF as `benny_t4r/cand_train.parquet` and `benny_t4r/cand_sub.parquet`.
+The candidates are the shared source `t4r` (see `folds.py`): `data_folds/shared/candidates/train/t4r/cand.parquet` (all week-4 sessions) and `.../sub/t4r/cand.parquet` (Kaggle test sessions). Their columns are (`session`, `cand`, `t4r_rank`, `t4r_score`). These are the top 50 per session, and `t4r_score` is a softmax over those 50. The model doesn't depend on the fold. Benny copied the same files to every `data_folds/fold_*/candidates/{train,sub}/t4r/cand.parquet`; `folds.read_candidates` filters the shared `train` file to the fold instead. `run_a100.sh` with `T4R_TRAIN=1` uploads them to HF as `benny_t4r/cand_train.parquet` and `benny_t4r/cand_sub.parquet`.
 
 ## Model
 

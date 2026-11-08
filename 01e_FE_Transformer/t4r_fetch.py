@@ -1,6 +1,7 @@
 """Install the A100 run's transformer candidates as the shared candidate source `t4r`.
 
-run_a100.sh uploads them to the HF dataset as benny_t4r/cand_{train,sub}.parquet.
+run_a100.sh with T4R_TRAIN=1 uploads them to the HF dataset as
+benny_t4r/cand_{train,sub}.parquet.
 This downloads them (or takes an existing download), checks them against the
 candidate contract (folds.write_candidates) and writes them to
     data_folds/shared/candidates/{train,sub}/t4r/cand.parquet

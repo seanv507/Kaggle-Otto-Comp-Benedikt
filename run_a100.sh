@@ -15,7 +15,7 @@
 # As the pod's start command (no SSH needed; the pod stops itself at the end). Set the env
 # vars HF_TOKEN={{ RUNPOD_SECRET_HF_TOKEN }} and NTFY_TOPIC={{ RUNPOD_SECRET_NTFY_TOPIC }}
 # (Runpod secrets) and the start command to:
-#   bash -c '(/start.sh >/workspace/start.log 2>&1 &); mkdir -p /workspace/logs; curl -sSL https://raw.githubusercontent.com/seanv507/Kaggle-Otto-Comp-Benedikt/polars-gru/run_a100.sh | bash 2>&1 | tee -a /workspace/logs/run.log; sleep infinity'
+#   bash -c '(/start.sh >/workspace/start.log 2>&1 &); mkdir -p /workspace/logs; curl -sSL https://raw.githubusercontent.com/seanv507/Kaggle-Otto-Comp-Benedikt/master/run_a100.sh | bash 2>&1 | tee -a /workspace/logs/run.log; sleep infinity'
 # The branch in the URL and BRANCH below must match.
 #
 # Or by hand over SSH (inside tmux, so a dropped connection does not kill it):
@@ -32,7 +32,9 @@
 #   code       clone this repo and Chris's (a path dependency) side by side, uv sync
 #   inputs     download train, test, test_full and local_valid/* from HF
 #   preprocess 00_Preprocess/preprocess.py --check
-#   t4r        01e_FE_Transformer/t4r_fetch.py: the A100 run's t4r candidates (shared)
+#   t4r        01e_FE_Transformer/t4r_fetch.py: the 2026-11-06 run's t4r candidates (shared);
+#              with T4R_TRAIN=1 instead: t4r_data, t4r_train (~1.5 h) and t4r_upload
+#              (candidates, item map and last checkpoint to HF benny_t4r/)
 #   other      01f: pv and pv_2 candidates, session and item features (shared)
 #   benny_covisits, chris_covisits, word2vec, gru: 01b, 01c, 01a, 01d for FOLDS
 #   baseline   00_submissions/01_baseline/baseline.py (fills short sessions)
@@ -44,7 +46,7 @@
 set -euo pipefail
 
 REPO=${REPO:-https://github.com/seanv507/Kaggle-Otto-Comp-Benedikt.git}
-BRANCH=${BRANCH:-polars-gru}
+BRANCH=${BRANCH:-master}
 # Chris's part, a path dependency (for covisits.py), cloned next to this repo
 CHRIS_REPO=${CHRIS_REPO:-https://github.com/seanv507/Kaggle-OTTO-Comp.git}
 CHRIS_BRANCH=${CHRIS_BRANCH:-importable-covisits}
@@ -69,6 +71,11 @@ BENNY_COVISIT_ARGS=${BENNY_COVISIT_ARGS:-}
 CHRIS_COVISIT_ARGS=${CHRIS_COVISIT_ARGS:-}
 GRU_ARGS=${GRU_ARGS:-}
 RANKER_ARGS=${RANKER_ARGS:-}  # e.g. "--trees 100" for a quicker, weaker run
+# 1: train the transformer (01e) instead of fetching the candidates of the 2026-11-06 run
+# (full data only; t4r_train's --sample means something else)
+T4R_TRAIN=${T4R_TRAIN:-0}
+T4R_ARGS=${T4R_ARGS:---tf32}  # for t4r_train.py; TF32 matmuls on the A100
+HF_T4R_OUT=${HF_T4R_OUT:-benny_t4r}  # where T4R_TRAIN=1 uploads, and t4r_fetch.py reads
 NTFY_SERVER=${NTFY_SERVER:-https://ntfy.sh}
 # Runpod's /workspace volume is a network filesystem, where uv's many small writes can fail
 # ("Stale file handle"); the venv need not survive a stop, so keep it on the container disk
@@ -219,7 +226,24 @@ else
 fi
 
 # shared sources and features
-step t4r run 01e_FE_Transformer/t4r_fetch.py "${S[@]}"
+t4r_upload() {
+    local cands=data_folds/shared/candidates last
+    last=$(printf "%s\n" data_tmp/t4r/checkpoints/epoch_*.pt | sort -V | tail -1)
+    for f in "$cands/train/t4r/cand.parquet:cand_train.parquet" "$cands/sub/t4r/cand.parquet:cand_sub.parquet" \
+             "data_tmp/t4r/aid_map.parquet:aid_map.parquet" "$last:$(basename "$last")"; do
+        hf upload "$HF_DATASET" "${f%%:*}" "$HF_T4R_OUT/${f##*:}" --repo-type dataset \
+            --commit-message "Benny t4r: ${f##*:} ($(cat "$LOGS/commit.txt"))"
+    done
+}
+if [ "$T4R_TRAIN" = 1 ]; then
+    if [ -n "$SAMPLE" ]; then echo "T4R_TRAIN=1 runs on the full data only"; exit 1; fi
+    step t4r_data run 01e_FE_Transformer/t4r_data.py
+    # shellcheck disable=SC2086  # T4R_ARGS is a list of arguments
+    step t4r_train run 01e_FE_Transformer/t4r_train.py $T4R_ARGS
+    if [ "$UPLOAD" = 1 ]; then step t4r_upload t4r_upload; fi
+else
+    step t4r run 01e_FE_Transformer/t4r_fetch.py "${S[@]}"
+fi
 other() {
     run 01f_FE_other/previous_visits.py "${S[@]}"
     run 01f_FE_other/session_features.py "${S[@]}"
