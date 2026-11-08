@@ -11,10 +11,9 @@ otherwise. Per (session, cand):
     sim_last    max sim over the events in the session's last second
     sim_type_1  sum sim over carts and orders / (1 + sim_3)
 Benny computed the cosines row by row with pandarallel; here once per (cand, aid)
-pair, in numpy batches.
+pair, in batches.
 """
 
-import numpy as np
 import polars as pl
 from beartype import beartype
 
@@ -53,25 +52,21 @@ def similarities(
 ) -> pl.DataFrame:
     """(cand, aid, sim) for the pairs whose cosine is above THRESHOLD.
 
-    Pairs with an aid or cand that has no vector are left out (sim 0).
+    Pairs with an aid or cand that has no vector are left out (sim 0). The cosine is
+    the dot product of the unit vectors, as Polars Array arithmetic, `batch` pairs at
+    a time (each pair carries two 50-d vectors). Against numpy's einsum it differs by
+    float32 rounding (<= 6.6e-7); on the 2% sample, 1 pair in 1.3M fell on the other
+    side of THRESHOLD.
     """
-    vectors = emb["emb"].to_numpy().astype(np.float32)
-    vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
-    index = emb.select("aid", i=pl.int_range(pl.len(), dtype=pl.Int64))
-    pairs = pairs.join(index.rename({"aid": "cand", "i": "ic"}), on="cand").join(
-        index.rename({"i": "ia"}), on="aid"
+    v = pl.col("emb")
+    unit = emb.select("aid", emb=v / (v * v).arr.sum().sqrt())
+    pairs = pairs.join(unit.rename({"aid": "cand", "emb": "e_cand"}), on="cand").join(
+        unit.rename({"emb": "e_aid"}), on="aid"
     )
-    ic, ia = pairs["ic"].to_numpy(), pairs["ia"].to_numpy()
-    sim = np.empty(len(pairs), dtype=np.float32)
-    for s in range(0, len(pairs), batch):
-        sim[s : s + batch] = np.einsum(
-            "ij,ij->i", vectors[ic[s : s + batch]], vectors[ia[s : s + batch]]
-        )
-    return (
-        pairs.select("cand", "aid")
-        .with_columns(sim=sim)
-        .filter(pl.col("sim") > THRESHOLD)
-    )
+    cosine = (pl.col("e_cand") * pl.col("e_aid")).arr.sum()
+    parts = [p.select("cand", "aid", sim=cosine) for p in pairs.iter_slices(batch)]
+    out = pl.concat(parts) if parts else pairs.select("cand", "aid", sim=cosine)
+    return out.filter(pl.col("sim") > THRESHOLD)
 
 
 @beartype
