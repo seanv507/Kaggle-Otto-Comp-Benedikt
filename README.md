@@ -6,31 +6,11 @@ My model achieved public LB 0.60102 and private LB 0.6003. This repository conta
 
 I shared [my approach on kaggle write-up](https://www.kaggle.com/competitions/otto-recommender-system/discussion/386497). You can find my teammate's solution: [Chris](https://www.kaggle.com/competitions/otto-recommender-system/discussion/383013) and [Theo](https://www.kaggle.com/competitions/otto-recommender-system/discussion/382975).
 
-## Requirements
+## This fork
 
-The code runs on a single V100 GPU with 32GB memory and ~1.5TB disk space.
+This is a fork of Benny's code. The cuDF notebooks are replaced with Polars Python scripts: one per step, next to the notebook it replaced, with tests and a README of its own. The transformer and the GRU are reimplemented in plain PyTorch. Each step's README lists where it differs from Benny's code. Benny's own text below is kept as he wrote it, apart from the run instructions.
 
-I recommend using docker. I used following base image `nvcr.io/nvidia/merlin/merlin-tensorflow:22.12` which includes [RAPIDs cuDF](https://docs.rapids.ai/api/cudf/stable/), TensorFlow, XGBoost, etc.
-
-I install additional libraries:
-```
-# General
-pip install pandarallel
-
-# For Transformer4Rec
-pip install torch torchmetrics==0.10.0
-cd /nvtabular && git pull origin main && pip install .
-cd / && rm -rf dataloader && git clone https://github.com/NVIDIA-Merlin/dataloader.git && cd dataloader && git pull origin main && pip install .
-cd / && rm -rf transformers4rec && git clone https://github.com/NVIDIA-Merlin/Transformers4Rec.git && mv Transformers4Rec transformers4rec && cd transformers4rec && git pull origin main && git checkout 851a8903316cccab91850b1e39ade5018b287945 && pip install .
-
-# For Woord2Vec
-pip install gensim
-```
-(If I missed some, a basic pip install should fix it)
-
-#### Symbolic Links
-
-`create_symbolic_links.sh` sets up some symbolic links (see directory explanation below). The pipeline was written where all files were located in one directory. I splitted the files into individual steps to make it easier to understand. 
+Chris's part of the solution is being converted the same way in the sibling repo [`Kaggle-OTTO-Comp`](https://github.com/seanv507/Kaggle-OTTO-Comp). This repo uses its covisitation code as a uv path dependency, so it needs that repo checked out next to this one.
 
 ## Model Summary
 
@@ -54,70 +34,52 @@ I splitted my dataset as proposed by Radek and truncated the 4th week. A differe
 
 ## Files Inventory
 
-I provide a quick overview of the directory structure:
-
 ```
-├── 00_Preprocess                  # Contain code (incl. host scripts) for preprocessing
-├── 00_submissions                 # Stores Submission Files
-├── 01a_FE_Word2Vec                # Trains Word2Vec model to generate item embeddings
-├── 01b_FE_CoVisit_1               # Creates CoVisitation Matrices based on own logics
-├── 01c_FE_CoVisit_2_Chris         # Creates CoVisitation Matrices from Chris solutions after we merged (only 10 used)
-├── 01d_FE_GRU                     # Trains a GRU model to generate scores for session x cand pairs
-├── 01e_FE_Transformer             # Trains a Transformer model to generate scores for session x cand pairs
-├── 01f_FE_other                   # Generates additional features such as historical sales
-├── 02_Clicks                      # Runs step 2-4 for clicks target
-├── 03_Carts                       # Runs step 2-4 for clicks carts
-├── 04_Orders                      # Runs step 2-4 for clicks orders
-├── README.md
-├── create_symbolic_links.sh
-├── data                           # Contains original dataset from Kaggle
-├── data_folds                     # Contains temporary files per fold
-├── data_tmp                       # Contains temporary files
-├── img
-└── preprocess                     # Contains dataset after the host script is applied to week 4
+├── 00_Preprocess          # input links, labels, the week-4 folds and the Kaggle-test session parts
+├── 00_submissions         # 01_baseline: Chris's public baseline (fills short sessions)
+├── 01a_FE_Word2Vec        # Word2Vec item embeddings, per fold
+├── 01b_FE_CoVisit_1       # Benny's covisitation matrices and their candidates, per fold
+├── 01c_FE_CoVisit_2_Chris # Chris's 10 matrices (from the sibling repo) and their features, per fold
+├── 01d_FE_GRU             # 6 GRU models' next-item scores, per fold
+├── 01e_FE_Transformer     # the transformer's candidates (trained once, shared by the folds)
+├── 01f_FE_other           # previous-visit candidates, session and item features (shared)
+├── 02_Clicks, 03_Carts, 04_Orders  # READMEs only: the rankers are in ranking/
+├── ranking                # the three rankers as configurations of one package
+├── folds.py               # fold inputs and the candidate-file layout, used by every step
+├── paths.py, metrics.py, session_ops.py, event_types.py
+├── run_a100.sh            # the whole pipeline on a cloud GPU pod
+├── docs                   # the conversion plan and the full run's timings and metrics
+├── data, preprocess, data_tmp, data_folds  # inputs, intermediate files and outputs (git-ignored)
+└── img
 ```
 
 ## How to run the code
 
-Note:
-- Code and Notebooks are index by numbers and should be executed in that order.
-- I developed the code to run almost all files in one directory. I splitted it to make it more readible.
-- I developed my pipeline to use only 20% truncated and 80% untruncated sessions of week 4. I noticed that I can improve my LB scores by running my pipeline for all 5x folds. Therefore, I had to run many scripts 5 times.
-- I developed my pipeline to generate candidates for clicks, carts and orders at the same time. I noticed that I use different candidate generation techniques per target, resulting in 3x pipelines (`02_Clicks`, `03_Carts` and `04_Orders`) which all share similar code.
+The environment is managed with [uv](https://docs.astral.sh/uv/). Run everything from the repo root:
 
-## Steps
+```bash
+uv sync --extra cu132          # CUDA 13.2 torch on a GPU machine; --extra cpu otherwise
+uv run pytest                  # tests (the GPU engine's are skipped without a GPU)
+```
 
-Some folder contains additional README.md files.
+**The whole pipeline** runs from `run_a100.sh`: preprocessing, every candidate source and feature for all 5 folds, the three rankers, and `submission.csv` with its score on the Kaggle test labels. It's written for a Runpod pod (A100 80 GB); its header has the start command and the pod's requirements. It resumes after a failure from the last step that finished. [`docs/full_run.md`](docs/full_run.md) has the first full run's timings, costs and metrics: about 9 h and $17 for the sources of 5 folds.
 
-#### For all Targets 
+**Locally, on a sample:** every step takes `--sample <fraction>` and writes to `data_folds/sample_<fraction>/`, so it never overwrites the full outputs:
 
-**0. Preparation:**
-- Download and extract the dataset into `./data/`
-- Execute `create_symbolic_links.sh` to generate symbolic links
-- Follow `00_Preprocess/README.md` to generate local CV, convert jsonl files to parquet and split the data into folds
-- Chris' public solution (LB 0.575) was used to fill sessions with less than 20 recommendations. Either download his files from Kaggle or run the notebooks in `./00_submissions/01_baseline/`
+```bash
+LOCAL=1 SAMPLE=0.02 FOLDS="0 1" GRU_ARGS="--max-steps 300 --width 32 --eval-batch-size 64" \
+    RANKER_ARGS="--trees 50" WORK=/tmp/otto bash run_a100.sh
+```
 
-**1. Feature Engineering:**
-Most scripts can be executed independent (only GRU depends on Word2Vec scripts). 
+Or one step at a time, in this order. Each step's README has the details.
 
-**The scripts contain a variable `igfold` in the beginning. The script needs to be exectured 5 times with igfold=0,...,5**
+1. [`00_Preprocess/preprocess.py`](00_Preprocess/README.md): links the inputs from the sibling repo's data, and builds the labels and session splits.
+2. Per-fold and shared sources and features. These are independent, except that the GRU needs Word2Vec:
+   - [`01e_FE_Transformer/t4r_fetch.py`](01e_FE_Transformer/README.md): the transformer's candidates, from the HF dataset (or train it with `t4r_train.py`);
+   - [`01f_FE_other/`](01f_FE_other/README.md): `previous_visits.py`, `session_features.py`, `item_features.py`;
+   - [`01b_FE_CoVisit_1/benny_covisits.py`](01b_FE_CoVisit_1/README.md) and [`01c_FE_CoVisit_2_Chris/chris_covisits.py`](01c_FE_CoVisit_2_Chris/README.md);
+   - [`01a_FE_Word2Vec/word2vec.py`](01a_FE_Word2Vec/README.md), then [`01d_FE_GRU/gru_train.py`](01d_FE_GRU/README.md).
+3. [`00_submissions/01_baseline/baseline.py`](00_submissions/01_baseline/README.md): Chris's baseline.
+4. [`ranking/`](ranking/README.md): `uv run python -m ranking split|cv|sub|stack ...` for clicks, carts and orders, then `submission`.
 
-**Note: The pipelines for clicks, carts and orders can be run independently from each other - but each pipeline will write files in the same directory and might overwriting files from other pipelines. It is recommended to run only one end-to-end at the time.**
-
-#### Clicks
-
-**2. Clicks:**
-Execute the scripts in `02_Clicks`. The final notebook `04_Combine-Bags.ipynb` ensembles the different folds and bags to a final submission.csv (only clicks).
-
-#### Carts
-
-**3. Carts:**
-Execute the scripts in `03_Carts`. The final notebook `04_Combine-Bags.ipynb` ensembles the different folds and bags to a final submission.csv (only carts).
-
-#### Orders
-
-**4. Orders:**
-Execute the scripts in `03_Carts`. The final notebook `06_Combine-Bags.ipynb` ensembles the different folds and bags to a final dataframe for orders. It will load the previous submission.csv s from `02_Clicks` and `03_Orders` to generate the final submissiono.csv.
-
-
-
+The original notebooks are in the git history (before this fork's conversion commits).

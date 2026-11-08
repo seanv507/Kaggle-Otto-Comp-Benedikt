@@ -1,5 +1,7 @@
 # Plan: converting the rest of Benny's pipeline to Polars
 
+**Complete (2026-11-08).** Every step is converted, all branches are merged into `master`, and the first full run is described in [`full_run.md`](full_run.md). The rest of this file is the plan as it was carried out, kept for its decisions and notes.
+
 Status on 2026-11-07:
 - **Done, on master:** `00_Preprocess`, and `01e_FE_Transformer`. The full A100 run of `01e` beat Benny's recall@20 (week 4: 0.503/0.392/0.524 against his 0.455/0.331/0.491).
 - **Step 1 (`folds.py`):** done on branch `polars-folds`.

@@ -15,7 +15,7 @@ The sibling repo `../Kaggle-OTTO-Comp` is Chris Deotte's part, and it is being c
 
 `../Kaggle-OTTO-Comp/docs/solutions.md` summarises both write-ups.
 
-The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**, one pipeline step at a time, next to the notebooks they replace. Done so far:
+Benny's cuDF notebooks have all been **replaced with Polars Python scripts**, one per step, in the directories of the notebooks they replaced; the notebooks are in the git history. The steps:
 - `00_Preprocess/preprocess.py`
 - `01e_FE_Transformer/` (`t4r_data.py`, `t4r_model.py`, `t4r_train.py`): Benny's Transformers4Rec model, reimplemented in plain PyTorch with HF `XLNetModel`. See its README for the differences from Benny's code and the A100 recall, which beats Benny's.
 - `01f_FE_other/` (`previous_visits.py`, `session_features.py`, `item_features.py`): the `pv` and `pv_2` candidates, the session features and the item activity features. All of them are shared by the folds.
@@ -26,7 +26,7 @@ The main work is **replacing Benny's cuDF notebooks with Polars Python scripts**
 - `01c_FE_CoVisit_2_Chris/chris_covisits.py`: Chris's 10 matrices per fold, from the sibling's `covisits.py`, and Benny's apply step (`chris__<i>__15` features).
 - `ranking/` (root package, `uv run python -m ranking ...`): Benny's three rankers (`02_Clicks`, `03_Carts`, `04_Orders`) as configurations (`SPLITS`, `MODELS`) of one implementation: split, local CV, submission models, the orders chain's stacked scores, combine with the baseline fill, and `submission.csv`. See `ranking/README.md`.
 - `00_submissions/01_baseline/baseline.py`: Chris's public 0.575 baseline, which fills the rankers' short sessions.
-- `run_a100.sh` (root): the whole pipeline on the full data for a cloud GPU pod; `LOCAL=1 SAMPLE=0.02` runs it on a local sample. See its header for the pod's requirements.
+- `run_a100.sh` (root): the whole pipeline on the full data for a cloud GPU pod; `LOCAL=1 SAMPLE=0.02` runs it on a local sample, and `T4R_TRAIN=1` trains the transformer instead of fetching its candidates. See its header for the pod's requirements. `docs/full_run.md` has the first full run's timings, costs and metrics.
 - `folds.py` (root): the fold inputs (`fe_events(k)`, `candidate_events(k, dataset)`, `labels`), `sample_sessions` for local development, and the candidate-file layout (`write_candidates`, `candidate_paths`, `read_candidates`, `feature_path`). Every per-fold step uses it instead of rebuilding the inputs. `metrics.py` scores any candidate file with recall@k.
 
 `docs/conversion_plan.md` has the remaining steps. Each step goes on its own branch and is developed locally on a sample. The A100 runs come at the end.
