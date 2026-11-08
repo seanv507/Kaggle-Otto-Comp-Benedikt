@@ -116,9 +116,12 @@ def feature_columns(df: pl.DataFrame) -> list[str]:
 
 
 def _matrix(df: pl.DataFrame, columns: list[str], label: bool = True) -> xgb.DMatrix:
-    x = df.select(columns).cast(pl.Float32).to_numpy()
+    """The features as an XGBoost matrix, from the Polars frame itself (through Arrow):
+    no dense float32 copy first. Predictions are identical to the numpy route's."""
     return xgb.DMatrix(
-        x, label=df["target"].to_numpy() if label else None, feature_names=columns
+        df.select(columns),
+        label=df.select("target") if label else None,
+        feature_names=columns,
     )
 
 
