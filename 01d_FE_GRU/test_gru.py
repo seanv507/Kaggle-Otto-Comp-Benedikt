@@ -5,7 +5,7 @@ import polars as pl
 import torch
 from gru_data import inference_inputs, training_examples, training_examples_chunked
 from gru_model import CONFIGS, GRU, Config, false_negative_mask
-from gru_train import combine, padded, predict, tensors
+from gru_train import combine, example_arrays, predict, tensors
 
 from event_types import CARTS, CLICKS, ORDERS
 
@@ -61,14 +61,13 @@ def test_inference_inputs():
     assert got["rank"].to_list()[1] == list(range(20, 1, -1))
 
 
-def test_padded():
-    df = pl.DataFrame({"x": [[1, 2], [3]]}, schema={"x": pl.List(pl.Int32)})
-    a = padded(df, "x")
-    assert (
-        a.shape == (2, 19)
-        and a[0, :3].tolist() == [1, 2, 0]
-        and a[1, :2].tolist() == [3, 0]
-    )
+def test_example_arrays():
+    """Inputs padded to SEQ with 0, lengths and targets as numpy arrays."""
+    events = _events([(1, [(10, CLICKS), (11, CARTS), (12, ORDERS)])])
+    ex = training_examples(events).collect().sort("target")
+    got = example_arrays(ex)
+    assert got["item"].shape == (2, 19) and got["item"][1, :3].tolist() == [12, 13, 0]
+    assert got["length"].tolist() == [1, 2] and got["target"].tolist() == [13, 14]
 
 
 def test_false_negative_mask():
@@ -152,16 +151,3 @@ def test_training_examples_chunked():
     for chunk in (1, 7, 1000):
         got = training_examples_chunked(events, chunk).sort(keys)
         assert got.equals(want)
-
-
-def test_padded_in_slices(monkeypatch):
-    """Padding in row slices gives the same array as one pass."""
-    import gru_train
-
-    df = pl.DataFrame(
-        {"x": [[1, 2], [3], [4, 5, 6], [], [7]]}, schema={"x": pl.List(pl.Int32)}
-    )
-    want = padded(df, "x")
-    monkeypatch.setattr(gru_train, "ROWS_PER_SLICE", 2)
-    got = gru_train.padded(df, "x")
-    assert got.shape == (5, 19) and (got == want).all()

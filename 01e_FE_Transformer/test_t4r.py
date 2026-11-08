@@ -6,7 +6,7 @@ import polars as pl
 import pytest
 import torch
 from polars.testing import assert_frame_equal
-from t4r_data import PAD, UNKNOWN, aid_map, sequences, to_padded
+from t4r_data import PAD, UNKNOWN, aid_map, sequences
 from t4r_model import Params, SessionTransformer, false_negative_mask, mlm_targets
 from t4r_train import predict, recall_at_20
 
@@ -63,13 +63,6 @@ def test_sequences(engine):
         orient="row",
     )
     assert_frame_equal(sequences(events, aids, seq_len=3, engine=engine), expected)
-
-
-def test_to_padded():
-    items = pl.Series([[3, 4, 5], [6], []], dtype=pl.List(pl.Int32))
-    np.testing.assert_array_equal(to_padded(items, 4), [[3, 4, 5, 0], [6, 0, 0, 0], [0, 0, 0, 0]])
-    with pytest.raises(ValueError):
-        to_padded(items, 2)
 
 
 def test_mlm_targets():

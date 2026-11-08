@@ -28,12 +28,13 @@ import numpy as np
 import polars as pl
 import torch
 from beartype import beartype
-from t4r_data import AID_MAP, FIRST_ITEM, PAD, T4R, sequence_path, to_padded
+from t4r_data import AID_MAP, FIRST_ITEM, PAD, T4R, sequence_path
 from t4r_model import Params, SessionTransformer
 
 import folds
 import paths
 from event_types import TYPE_NAMES
+from padding import padded
 
 SOURCE = "t4r"
 CAND_TRAIN = folds.candidate_path(None, "train", SOURCE)
@@ -48,7 +49,7 @@ def load_sequences(name: str, seq_len: int, min_len: int = 1, sample: float = 1.
     seqs = seqs.filter(pl.col("item").list.len() >= min_len)
     if sample < 1.0:
         seqs = seqs.sample(fraction=sample, seed=seed).sort("session")
-    return seqs["session"].to_numpy(), to_padded(seqs["item"], seq_len).astype(np.int32)
+    return seqs["session"].to_numpy(), padded(seqs["item"], seq_len, pad=PAD).astype(np.int32)
 
 
 def cosine_schedule(optimizer, steps: int, cycles: float):

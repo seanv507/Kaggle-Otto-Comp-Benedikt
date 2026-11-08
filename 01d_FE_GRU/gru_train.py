@@ -36,40 +36,18 @@ from gru_model import CONFIGS, FIRST_ITEM, GRU
 import folds
 import metrics
 from event_types import TYPE_NAMES
+from padding import padded
 
 SOURCE = "gru_scores_20"
 TOP = 50
 TYPE_CODES = {name: code for code, name in TYPE_NAMES.items()}
 
 
-ROWS_PER_SLICE = 5_000_000  # padding all ~126M rows at once nears Polars' 2^32 limit
-
-
-def padded(df: pl.DataFrame, column: str) -> np.ndarray:
-    """A list column as an (n, SEQ) array, padded with 0 on the right."""
-    filled = (
-        pl.col(column)
-        .list.concat(pl.lit([0] * SEQ, dtype=pl.List(df.schema[column].inner)))
-        .list.head(SEQ)
-        .list.to_array(SEQ)
-    )
-    blocks = [
-        df.slice(i, ROWS_PER_SLICE).select(filled).to_series().to_numpy()
-        for i in range(0, max(df.height, 1), ROWS_PER_SLICE)
-    ]
-    if len(blocks) == 1:
-        return blocks[0].reshape(df.height, SEQ)
-    out = np.empty((df.height, SEQ), dtype=blocks[0].dtype)
-    for i, block in zip(range(0, df.height, ROWS_PER_SLICE), blocks, strict=True):
-        out[i : i + len(block)] = block
-    return out
-
-
 def example_arrays(df: pl.DataFrame) -> dict[str, np.ndarray]:
     """The model inputs as numpy arrays, built once: a batch is then an index into
     them. (Gathering each batch from a ~126M-row Polars frame of list columns kept
     the A100 idle at under 3 steps/s.)"""
-    out = {c: padded(df, c) for c in ("item", "type", "rank")}
+    out = {c: padded(df[c], SEQ) for c in ("item", "type", "rank")}
     out["length"] = df["item"].list.len().to_numpy()
     if "target" in df.columns:
         out["target"] = df["target"].to_numpy()

@@ -11,7 +11,6 @@ split=0, so it isn't ported. Run from the repo root:
 
 import argparse
 
-import numpy as np
 import polars as pl
 from beartype import beartype
 
@@ -75,20 +74,6 @@ def sequences(events: Frame, aids: Frame, seq_len: int = SEQ_LEN, engine="stream
         .sort("session")
         .collect(engine=engine)
     )
-
-
-@beartype
-def to_padded(items: pl.Series, width: int) -> np.ndarray:
-    """List column -> int64 array (n, width), items left-aligned and padded with PAD."""
-    lengths = items.list.len().to_numpy().astype(np.int64)  # uint64 - int64 would give floats
-    if lengths.max(initial=0) > width:
-        raise ValueError(f"a sequence is longer than {width}")
-    values = items.explode(empty_as_null=False).to_numpy().astype(np.int64)
-    rows = np.repeat(np.arange(len(lengths)), lengths)
-    cols = np.arange(len(values)) - np.repeat(np.cumsum(lengths) - lengths, lengths)
-    out = np.full((len(lengths), width), PAD, dtype=np.int64)
-    out[rows, cols] = values
-    return out
 
 
 def main(seq_len: int, engine: str):
