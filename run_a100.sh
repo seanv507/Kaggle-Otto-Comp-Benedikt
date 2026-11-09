@@ -4,12 +4,12 @@
 # score on the Kaggle test labels (Benny's own part: LB 0.601).
 #
 # Needs an NVIDIA driver with CUDA 13 (e.g. an A100 80 GB; not a V100) and HF_TOKEN (read
-# access to the HF dataset; write access for the uploads). Sizes scaled linearly from the
-# 2% sample (5.3 GB for 2 folds), not measured on the full data:
-#   - disk: about 120 GB per fold (candidates, matrices, ranker rows) and 35 GB for the
-#     ranker scores, so >= 800 GB on the volume;
-#   - RAM: >= 256 GB (Chris's machine; the GRU holds ~150M training examples per fold,
-#     and XGBoost loads up to 5 ranker chunks of ~10 GB each).
+# access to the HF dataset; write access for the uploads). Sizes, from the first full run
+# (2026-11-07/08, docs/full_run.md):
+#   - disk: >= 1,000 GB on the volume. 800 GB filled up while the orders split was being
+#     written, before free_space (below) deleted the matrices and the finished splits;
+#   - RAM: 250 GB was enough (the GRU holds ~141M training examples per fold, and
+#     XGBoost loads up to 10 ranker chunks).
 # Keep WORK on the pod's volume (/workspace) so outputs survive a stop.
 #
 # As the pod's start command (no SSH needed; the pod stops itself at the end). Set the env
@@ -42,7 +42,8 @@
 #   submission ranking submission: submission.csv and its weighted recall@20
 # Notifications (if NTFY_TOPIC is set): ntfy.sh on each completed step, at the end, and
 # with high priority on failure. On exit, success or failure, the logs, the submission and
-# the CV results are uploaded (if UPLOAD=1) and the pod stops (if STOP_POD=1 on Runpod).
+# the CV results are uploaded (if UPLOAD=1) and the pod stops (if STOP_POD=1 on Runpod),
+# STOP_GRACE_MIN (20) minutes later, so it can be restarted on its GPU in the meantime.
 set -euo pipefail
 
 REPO=${REPO:-https://github.com/seanv507/Kaggle-Otto-Comp-Benedikt.git}
@@ -61,9 +62,10 @@ LOCAL=${LOCAL:-0}  # 1: use the checkout this script is in (see above)
 if [ "$LOCAL" = 1 ]; then UPLOAD=0 STOP_POD=0; fi
 UPLOAD=${UPLOAD:-1}  # 0: keep the outputs on the pod only
 STOP_POD=${STOP_POD:-1}  # 0: leave the pod running at the end (e.g. to inspect it)
-# after a failure, wait this long before stopping: a stopped pod's GPU is soon taken by
-# another renter, so a fix is applied by restarting the running pod
-FAIL_GRACE_MIN=${FAIL_GRACE_MIN:-20}
+# wait this long before stopping, after a failure or a success: a stopped pod's GPU is
+# soon taken by another renter, so a fix (or a follow-up step) is applied by restarting
+# the running pod. 0: stop at once. (FAIL_GRACE_MIN, its old name, still works.)
+STOP_GRACE_MIN=${STOP_GRACE_MIN:-${FAIL_GRACE_MIN:-20}}
 TORCH_EXTRA=${TORCH_EXTRA:-cu132}
 # extra arguments per step, e.g. BENNY_COVISIT_ARGS="--engine gpu" or
 # CHRIS_COVISIT_ARGS="--session-chunk 500000" if a matrix runs out of memory
@@ -141,9 +143,9 @@ $(tail -n 5 "$LOGS/${STEP:-run}.log" 2>/dev/null)" high
         done
     fi
     if [ "$STOP_POD" = 1 ] && [ -n "${RUNPOD_POD_ID:-}" ]; then
-        if [ "$status" != 0 ] && [ "$FAIL_GRACE_MIN" -gt 0 ]; then
-            echo "waiting $FAIL_GRACE_MIN min before stopping (restart the pod to retry on its GPU)"
-            sleep $(( FAIL_GRACE_MIN * 60 ))
+        if [ "$STOP_GRACE_MIN" -gt 0 ]; then
+            echo "waiting $STOP_GRACE_MIN min before stopping (restart the pod to run more on its GPU)"
+            sleep $(( STOP_GRACE_MIN * 60 ))
         fi
         echo "stopping pod $RUNPOD_POD_ID"
         stop_pod
@@ -164,7 +166,7 @@ step() {
     local min=$(( (SECONDS - STEP_T0) / 60 ))
     echo "=== $name done in $min min" | tee -a "$LOGS/steps.txt"
     notify "Done: $name in $min min
-$(grep -hiE "recall|score" "$LOGS/$name.log" | tail -n 12 || true)"
+$(grep -ahiE "recall|score" "$LOGS/$name.log" | tail -n 12 || true)"
 }
 
 # code (always updated, so a rerun picks up fixes)
@@ -294,5 +296,7 @@ step orders orders
 STEP=submission
 run -m ranking submission "${S[@]}" 2>&1 | tee -a "$LOGS/submission.log"
 
-{ grep -hE "cv recall@20|Kaggle test" "$LOGS"/{clicks,carts,orders,submission}.log 2>/dev/null || true; } \
+# -a: a log can hold NUL bytes (orders.log on 2026-11-08, from a write cut off by the full
+# disk), which makes grep treat it as binary and print nothing
+{ grep -ahE "cv recall@20|Kaggle test" "$LOGS"/{clicks,carts,orders,submission}.log 2>/dev/null || true; } \
     | tee "$LOGS/summary.txt"
